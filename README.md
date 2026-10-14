@@ -222,3 +222,9 @@ When finished, revoke the temporary token through your approved workflow and rem
 - [Glean cookbook](https://developers.glean.com/cookbook)
 
 For an application you will ship to users, review the official authentication guidance, including OAuth for per-user integrations. This repository focuses on a small, repeatable learning exercise.
+
+## Optional: put a source document into Glean with the Indexing SDK
+
+The [Indexing SDK lab](indexing/README.md) adds the other half of the story: submit a fictional **Orion Service Recovery** runbook with a one-user ACL, check its indexing and access status, then find it in Glean. It starts with a dry run and only writes after an explicit sandbox confirmation.
+
+This lab uses a separate `.venv-indexing` environment, separate `indexing/.env` settings and an Indexing API token. Keep the existing Search environment unchanged. Start with [the indexing walkthrough](indexing/README.md), or use [its Glean Tau setup prompt](indexing/PROMPT.md).

@@ -70,3 +70,23 @@ REST and Python returned the same title-and-link pairs: yes / no / not checked
 Generated reports omit credentials and retrieved document bodies, but titles, URLs, queries and environment details can still be sensitive. Review the actual report before sharing it. Keep reports local unless their contents are appropriate for the audience. Do not attach `.env`, token files, Authorization headers, raw responses or verbose network traces.
 
 For current endpoint and authentication details, use the official [Platform Search reference](https://developers.glean.com/api/platform-api/platform-search), [API client documentation](https://developers.glean.com/libraries/api-clients) and [Glean-issued token documentation](https://developers.glean.com/api-info/client/authentication/glean-issued).
+
+## Indexing SDK lab
+
+Start with [the indexing walkthrough](indexing/README.md). Its settings, credential and Python environment are separate from the Search lab.
+
+| Symptom | What to check next |
+| --- | --- |
+| Dependency conflict, missing SDK, or version check fails | Install `indexing/requirements.txt` into `.venv-indexing` and use `.venv-indexing/bin/python`. SDK 1.2.1 depends on API client 0.13.x; the Search lab's 0.17.16 is separate. |
+| Datasource name is rejected locally | Use the dedicated datasource's API name: `powerupdemo` plus an alphanumeric suffix. The administrator must have created it first. A display label is not the API name. |
+| `--confirm-sandbox` is rejected | Use the exact hostname from `GLEAN_INDEXING_BASE_URL`, without `https://` or a trailing slash. Review the destination before running `--apply`. |
+| HTTP 401 or 403 | Confirm this is an Indexing API token with access to the demo datasource and that it has not expired. A Search token is not interchangeable. Do not grant broader access automatically. |
+| Upload completed but search finds nothing | Run `indexing/check_demo.py`. An accepted upload can still be waiting for indexing. Check the intended user and the test datasource's allow-list too. |
+| `latest_upload_indexed` is false | The index may not have caught up, or status did not provide usable upload/index timestamps. Wait, then repeat the read-only status check. |
+| `permission_identity_status` is `NOT_UPLOADED` | Have the administrator review the email-reference configuration and datasource user mapping. The optional `indexing/index_test_user.py` is a separate, explicitly authorized one-user mutation. |
+| Access check is false | Verify the exact intended email and the datasource identity mapping. Keep the one-user ACL intact. |
+| Access check is true but UI search is empty | Confirm the browser uses that same sandbox user, the test datasource allows that user, and indexing is current. The access API alone does not prove UI visibility. |
+| Upload times out or returns an uncertain result | Check status before retrying. The request may have reached the server. The demo uses a stable ID so a deliberate rerun updates the same document, but the script does not retry automatically. |
+| Source link is a GitHub page | Expected: this synthetic runbook's canonical source is `indexing/sample_document.md` in this public repository. No private source system is involved. |
+
+The checker reads the current document-debug and access endpoints through `StatusClient`. It does not rely on deprecated document-status calls. It prints selected status fields and booleans, omitting ACL email lists, raw response bodies and credentials. See [official status guidance](https://developers.glean.com/libraries/indexing-sdk/status-and-debugging).

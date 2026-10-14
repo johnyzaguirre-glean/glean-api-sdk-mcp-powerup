@@ -1,0 +1,4 @@
+# Keep separate from the Platform API examples at the repository root.
+glean-indexing-sdk==1.2.1
+glean-api-client==0.13.0
+httpx==0.28.1

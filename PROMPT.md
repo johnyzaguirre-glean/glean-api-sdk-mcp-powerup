@@ -115,3 +115,7 @@ relevant non-secret repository files or give me one copyable command at a
 time. Ask for sanitized outcome summaries, never a token or full debug log.
 Do not invent Tau commands, installation steps or capabilities.
 ```
+
+## Optional Indexing SDK follow-up
+
+If my goal is to put new source content into Glean, use [indexing/PROMPT.md](indexing/PROMPT.md) and [indexing/README.md](indexing/README.md). That is a separate lab with a fictional Orion Service Recovery document. Keep its `.venv-indexing`, `indexing/.env` and Indexing API token separate from this Search/MCP setup. Start with the dry run and preserve the explicit sandbox upload guard. Do not install its older compatible API client into the Search environment.
