@@ -5,6 +5,18 @@ from lab import (DOCUMENT_ID, OBJECT_TYPE, TIMEOUT, bounded_client, check_versio
                  deadline, emit, read_token, run_guarded, safe_failure, status_summary)
 
 
+def next_step(report):
+    if report.get("access_check_skipped"):
+        return "Resolve the reported authentication, authorization or rate-limit issue, then rerun this read-only check. Do not resend the upload blindly."
+    if report.get("latest_upload_indexed") is not True:
+        return "The latest upload is not confirmed indexed. Review the status or reported error, allow processing time, then rerun this read-only check. Do not resend the upload blindly."
+    if report.get("configured_user_has_access") is True:
+        return "Search GLEAN_INDEXING_QUERY in the Glean app as the configured test user and verify the title, source link and marker. Test-datasource allow-listing is an additional gate."
+    if report.get("configured_user_has_access") is False:
+        return "The document is indexed, but the configured user does not have access. Check the intended email, datasource identity mapping, document ACL and test-datasource visibility with the administrator. Keep the one-user ACL intact."
+    return "The document is indexed, but user access is not confirmed. Resolve the access-check error or missing result, then rerun this read-only check before testing UI search."
+
+
 def main():
     argparse.ArgumentParser(description=__doc__).parse_args()
     config = configure()
@@ -35,7 +47,7 @@ def main():
                 report["access_check"] = safe_failure(exc)
     report["requests"] = observations
     report["ready_for_ui_search_check"] = report.get("latest_upload_indexed") is True and report.get("configured_user_has_access") is True
-    report["next_step"] = "Search GLEAN_INDEXING_QUERY in the Glean app as the configured test user. Test-datasource allow-listing is an additional gate."
+    report["next_step"] = next_step(report)
     emit(report, token)
     return 0 if report["ready_for_ui_search_check"] else 1
 

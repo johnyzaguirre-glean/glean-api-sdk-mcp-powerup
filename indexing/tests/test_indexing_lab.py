@@ -16,6 +16,7 @@ from glean.indexing.push import PushUploader, StatusClient
 from glean.api_client.models import DebugDocumentsResponse, DebugDocumentRequest, DatasourceUserDefinition
 import push_demo
 import index_test_user
+from check_demo import next_step
 
 CONFIG = Config("https://example.com", ".secrets/test-only", "powerupdemoTEST",
                 "tester@example.com", '"PowerUp Demo: Orion Service Recovery"')
@@ -23,6 +24,23 @@ TOKEN = "synthetic-test-token-12345"
 
 
 class IndexingLabTests(unittest.TestCase):
+    def test_next_step_distinguishes_ready_pending_denied_and_unknown_access(self):
+        ready = next_step({"latest_upload_indexed": True, "configured_user_has_access": True})
+        self.assertIn("Search GLEAN_INDEXING_QUERY", ready)
+        pending = next_step({"latest_upload_indexed": False, "configured_user_has_access": True})
+        self.assertIn("not confirmed indexed", pending)
+        self.assertIn("Do not resend", pending)
+        denied = next_step({"latest_upload_indexed": True, "configured_user_has_access": False})
+        self.assertIn("does not have access", denied)
+        self.assertIn("identity mapping", denied)
+        self.assertIn("one-user ACL intact", denied)
+        unknown = next_step({"latest_upload_indexed": True, "configured_user_has_access": None})
+        self.assertIn("not confirmed", unknown)
+        self.assertNotIn("does not have access", unknown)
+        skipped = next_step({"access_check_skipped": "resolve_authentication_authorization_or_rate_limit_first"})
+        self.assertIn("rate-limit", skipped)
+        self.assertIn("read-only", skipped)
+
     def test_inert_env_preserves_phrase_without_shell_execution(self):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / ".env"
