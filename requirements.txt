@@ -1,0 +1,4 @@
+glean-api-client==0.17.16
+httpx==0.28.1
+jsonschema==4.26.0
+referencing==0.37.0
