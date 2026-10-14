@@ -124,7 +124,7 @@ Then, when approved, add or update that one datasource user:
 .venv-indexing/bin/python indexing/index_test_user.py --apply --confirm-sandbox YOUR-SANDBOX-be.glean.com
 ```
 
-This uses the email in `indexing/.env`, the synthetic display name `PowerUp demo tester`, and `is_active=true`. It maps a user into this datasource; it does not create a human account in your identity provider. After processing, rerun `check_demo.py`. Do not broaden the document ACL to make a failed test pass.
+This uses the email in `indexing/.env`, the synthetic display name `PowerUp demo tester`, and `is_active=true`. It maps the user into this datasource for permission checks. It does not create the processed People profile used by People search or user pickers, and it does not create an identity-provider account or grant sign-in access. If a user picker cannot find the tester, ask the sandbox owner to verify the People profile separately. After processing, rerun `check_demo.py`. Keep the one-user document ACL unchanged.
 
 ## What the code does
 
