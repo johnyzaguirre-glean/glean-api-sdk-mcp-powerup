@@ -6,7 +6,7 @@ This small lab is for Tech GTM: solutions engineers, solutions architects, AI ou
 
 **You only edit `.env`. The query, tenant URL and expected document details all live there.**
 
-Want help from Glean Tau? Open [PROMPT.md](PROMPT.md), copy the prompt, and give Tau access to this repository. It will walk through the same steps below.
+Want a friendly guide? Copy [PROMPT.md](PROMPT.md) into Glean Tau or another coding agent. You can start before downloading anything. It will help you clone the repo, configure it and run the examples one step at a time.
 
 ## Present the lab from separate terminal windows
 
