@@ -1,4 +1,4 @@
-# When a search does not work
+# When a lab request does not work
 
 Start with one known document. Open it in the Glean app using the account behind your User (self) token. Keep its title and source link so you can tell whether the terminal search found the right thing. A `200` response proves the request succeeded, not that it found your expected document.
 
@@ -67,9 +67,34 @@ Expected title and link matched by the example: yes / no / not checked
 REST and Python returned the same title-and-link pairs: yes / no / not checked
 ```
 
-Generated reports omit credentials and retrieved document bodies, but titles, URLs, queries and environment details can still be sensitive. Review the actual report before sharing it. Keep reports local unless their contents are appropriate for the audience. Do not attach `.env`, token files, Authorization headers, raw responses or verbose network traces.
+Search reports omit credentials and retrieved document bodies, but titles, URLs, queries and environment details can still be sensitive. Chat reports also contain bounded generated answer text and citations. Review the actual report before sharing it. Keep reports local unless their contents are appropriate for the audience. Do not attach `.env`, token files, Authorization headers, raw responses or verbose network traces.
 
 For current endpoint and authentication details, use the official [Platform Search reference](https://developers.glean.com/api/platform-api/platform-search), [API client documentation](https://developers.glean.com/libraries/api-clients) and [Glean-issued token documentation](https://developers.glean.com/api-info/client/authentication/glean-issued).
+
+## Chat API lab
+
+Start with `python scripts/check_setup.py --chat` from the repository root. This only validates local setup. The examples read `GLEAN_CHAT_QUERY`, `GLEAN_BASE_URL` and `GLEAN_TOKEN_FILE` from `.env`. They do not require you to source `.env` or edit code.
+
+| What you see | What to check next |
+| --- | --- |
+| `GLEAN_CHAT_QUERY` is missing | In an existing clone, add the new key to your existing `.env`. Keep your other settings. Use a harmless question that your tenant can answer. `GLEAN_QUERY` is the separate Search phrase. |
+| The Chat files or `--chat` option are missing | Update the existing repository with `git pull --ff-only`, review any local code conflicts, and install the current `requirements.txt` in `.venv`. Do not overwrite `.env`. |
+| Search works but Chat returns `403` | Confirm the user token is approved for CHAT scope and the tenant permits Chat. Search-only access is insufficient. Do not automatically grant broader permissions. |
+| Chat returns `401` | Check token expiry, revocation and the intended tenant. Follow the approved credential process. |
+| A token file already exists when saving a Chat token | Keep the original file. Set `GLEAN_TOKEN_FILE` to a new ignored path under `.secrets/` and use the hidden token helper for the approved Chat token. |
+| Python cannot find `g.chat.create` or rejects an argument | Use `.venv`, install the pinned API client 0.17.16, and run the repository example. `chat.create` accepts `input` and `store`; it does not take a `stream` keyword. Streaming has a separate method. |
+| A slide's environment variables do not work here | Use `GLEAN_BASE_URL`, `GLEAN_CHAT_QUERY` and `GLEAN_TOKEN_FILE` in this repo. The slide's shorter snippet uses `GLEAN_SERVER_URL`, `GLEAN_QUERY` and a direct token variable. The README maps them explicitly. |
+| HTTP `200`, but the run exits unsuccessfully | The runner also requires response status `COMPLETED`, a nonempty answer, and a response consistent with `store:false` without a saved conversation ID. Read the safe status and request ID. Do not treat HTTP status alone as proof of a usable answer. |
+| An answer has no citations | The runner reports this without automatically failing. Check whether the question needs company content and whether that content is available to the user. Review the answer before treating it as grounded. |
+| The answer is wrong or the sources do not support it | A completed request is not a correctness test. Open the cited sources with the intended account, review the question and inspect the relevant content. Record the request ID for escalation. |
+| REST and Python answers differ | Generated wording can vary. Compare whether each addresses the same question with useful, permitted sources. Do not require byte-for-byte answer equality. |
+| The answer or citation list is shortened | Output is deliberately bounded. Check the local report's truncation information and use a narrower question when helpful. Do not enable full-response logging to share private content. |
+| Chat times out or hits a usage limit | Stop and inspect the safe error and request ID. Follow the existing timeout and rate-limit guidance. Do not repeatedly send the same generation request. |
+| `run_diagnostics.py --include-chat` asks a different question | That option is a fixed connection probe. Use `examples/rest_chat.py` or `examples/python_chat.py` for the question in `GLEAN_CHAT_QUERY`. |
+
+Each example writes its own ignored, owner-only report: `outputs/rest-chat.json` or `outputs/python-chat.json`. Reports can contain private answer text and citation details. Share only reviewed status, error information and request IDs. Never attach token files or Authorization headers.
+
+Both requests use `store:false`, which asks Glean not to save the conversation. It does not turn off usage billing or service telemetry. See the official [Chat API reference](https://developers.glean.com/api/platform-api/platform-chat-create) and [streaming with citations cookbook](https://developers.glean.com/cookbook/streaming-chat-with-citations).
 
 ## Indexing SDK lab
 

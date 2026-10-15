@@ -1,6 +1,6 @@
 # Glean API, SDK and MCP PowerUp
 
-Find a document in Glean, find it again from code, and understand what the response tells you.
+Find a document in Glean, find it again from code, and understand what the response tells you. Then optionally use Chat to generate an answer in your app.
 
 This small lab is for Tech GTM: solutions engineers, solutions architects, AI outcomes managers, AI support managers and technical support engineers. Start with the REST and Python examples. Try MCP after those work.
 
@@ -14,6 +14,7 @@ Want help from Glean Tau? Open [PROMPT.md](PROMPT.md), copy the prompt, and give
 2. A REST request can find that document using the same account.
 3. The official Python client can run the same search.
 4. Optionally, a configured MCP server can expose and run its Search tool.
+5. Optionally, REST and the Python client can ask the Chat API a question and let you inspect its answer and citations.
 
 A successful HTTP status tells you the request worked. A matching document title and link tell you it found what you expected.
 
@@ -40,6 +41,14 @@ cd glean-api-sdk-mcp-powerup
 ```
 
 Keep this terminal open for the remaining steps.
+
+**Already cloned the lab?** From your existing repository folder, get the new examples with:
+
+```sh
+git pull --ff-only
+```
+
+Keep your existing `.env` and token files. Do not copy `example.env` over `.env` again. The optional Chat section below shows the one new setting to add. If Git reports local code changes or a merge problem, stop and review them before updating.
 
 ## 2. Install the dependencies
 
@@ -73,6 +82,7 @@ Open `.env` in your text editor. Replace the placeholder values:
 | `GLEAN_EXPECTED_TITLE` | The exact document title you expect to find |
 | `GLEAN_EXPECTED_URL` | The source link for that document |
 | `GLEAN_MCP_URL` | Leave empty until the optional MCP exercise |
+| `GLEAN_CHAT_QUERY` | A question for the optional Chat exercise, separate from your Search phrase |
 
 For example, to search for the phrase **Your document title**, set:
 
@@ -138,6 +148,74 @@ The report is saved to `outputs/diagnostics.json`. Review both the success check
 
 **Try a different search:** change `GLEAN_QUERY`, `GLEAN_EXPECTED_TITLE` and `GLEAN_EXPECTED_URL` in `.env`, save, and rerun the same commands.
 
+## Optional: get an answer with the Chat API
+
+Search returns documents. Chat uses a language model to generate an answer and can include citations to the sources it used. A customer might use Chat to answer an employee's question inside a support portal, instead of displaying only a list of links. The account's permissions still apply to the context Glean can retrieve.
+
+This exercise sends the same question through REST and the official Python API client. It uses your existing `.venv` and pinned `glean-api-client==0.17.16`. It does not use the separate Indexing SDK environment.
+
+### 1. Get the new examples
+
+For a fresh clone, complete steps 1 through 4 above. For an existing clone, run `git pull --ff-only` as shown above, activate `.venv`, and refresh its pinned dependencies:
+
+```sh
+source .venv/bin/activate
+python -m pip install -r requirements.txt
+```
+
+### 2. Check Chat access and add your question
+
+Use an approved, short-lived **Client API token for your own user with CHAT scope**. A Search-only token is insufficient. If you need to save a separate approved Chat token, set `GLEAN_TOKEN_FILE` in `.env` to a new ignored path such as `.secrets/glean-chat-token`, then run `python scripts/store_token.py`. Keep the original Search token file. The helper will not overwrite it. Use the token approved for the operation you are running.
+
+Open your existing `.env` and add this setting if it is missing:
+
+```dotenv
+GLEAN_CHAT_QUERY='How do I call the Glean Search API?'
+```
+
+Choose a harmless question that your own tenant's content can answer. The example question is a starting point, not a promise that every tenant has those API documents. `GLEAN_CHAT_QUERY` is separate from `GLEAN_QUERY`, so asking a question does not change the known-document Search exercise. Keep `GLEAN_BASE_URL` and the approved `GLEAN_TOKEN_FILE` configured. Do not put a token value in `.env` or run `source .env`.
+
+### 3. Check locally, then run both examples
+
+```sh
+python scripts/check_setup.py --chat
+python examples/rest_chat.py
+python examples/python_chat.py
+```
+
+The setup check is local only. It checks settings and dependencies without making a network request or proving that the server will accept the token. Each example then sends one question to `POST /api/chat`. Chat requests can consume model usage.
+
+Both examples set `store:false`, which asks Glean not to save the conversation. This does not disable usage billing or service telemetry.
+
+### 4. Read the answer and inspect its sources
+
+Each run prints a bounded answer, citations, the HTTP status and a request ID when available. It also saves an owner-only report to:
+
+- `outputs/rest-chat.json`
+- `outputs/python-chat.json`
+
+Look for `test_expectation_met: true`. The runner requires HTTP `200`, `response_status: COMPLETED`, `answer_present: true` and a response consistent with `store:false` without a saved conversation ID. That confirms the request completed, not that the answer is correct. Read it and open the citations to check whether they support what it says. An answer without citations is reported, rather than automatically treated as a failed request. Decide whether it is useful and grounded enough for the customer workflow.
+
+Do not expect REST and Python to produce identical answer text. Compare whether they addressed the same question using appropriate sources. Change only `GLEAN_CHAT_QUERY` in `.env` to try another question, then rerun either command.
+
+These reports can contain private generated text, source titles and links. They are ignored by Git. Keep them local and review their contents before sharing. A long answer or citation list may be shortened for the report, so do not treat the displayed excerpt as the entire response.
+
+The examples also accept `--base-url`, `--token-file` and `--query` overrides. For the guided lab, editing `.env` is simpler. Never pass a token value on the command line.
+
+### How the slide snippet maps to this lab
+
+The presentation shows a short SDK or curl example. This repository adds a settings loader, private token-file handling and bounded output around the same request:
+
+| Slide snippet | Repository setting |
+| --- | --- |
+| `GLEAN_SERVER_URL` | `GLEAN_BASE_URL` |
+| `GLEAN_QUERY` for the Chat question | `GLEAN_CHAT_QUERY` |
+| `GLEAN_API_TOKEN` | Token read from the file named by `GLEAN_TOKEN_FILE` |
+
+Use the repository names in `.env`. The scripts load that file as data, so you do not need to export its contents into a shell. The Python example calls `g.chat.create(input=..., store=False)` through API client 0.17.16. Streaming uses a separate client method and is outside this small exercise.
+
+Read the [Chat overview](https://developers.glean.com/api/platform-api/chat-overview), [Chat API reference](https://developers.glean.com/api/platform-api/platform-chat-create) and [streaming with citations cookbook](https://developers.glean.com/cookbook/streaming-chat-with-citations) for the full response format and additional examples.
+
 ## Optional: try MCP
 
 MCP lets a compatible AI host discover and call tools. This exercise checks the server connection and its Search tool. It does not configure an AI host or test its choice of tools.
@@ -188,7 +266,7 @@ python scripts/run_diagnostics.py --include-filters
 python scripts/run_diagnostics.py --include-chat
 ```
 
-`--include-negative` sends two deliberately invalid search requests. `--include-filters` retrieves available search filters. `--include-chat` requires Chat access and sends a fixed benign prompt with `store:false`; it can consume usage and produce service telemetry. These examples do not run agent actions or write indexed documents.
+`--include-negative` sends two deliberately invalid search requests. `--include-filters` retrieves available search filters. `--include-chat` is a separate connection diagnostic: it requires Chat access and sends a fixed benign prompt with `store:false`. It does not use `GLEAN_CHAT_QUERY` or replace the full Chat exercise above. It can consume usage and produce service telemetry. These examples do not run agent actions or write indexed documents.
 
 Requests have a 30-second deadline, no automatic retries, no redirect following and a 2 MB response limit. A failure does not automatically trigger broader permissions.
 
@@ -207,6 +285,8 @@ When finished, revoke the temporary token through your approved workflow and rem
 | [scripts/check_setup.py](scripts/check_setup.py) | Check local settings before making a request |
 | [examples/rest_search.py](examples/rest_search.py) | One direct HTTP search |
 | [examples/python_search.py](examples/python_search.py) | The same search through the official Python client |
+| [examples/rest_chat.py](examples/rest_chat.py) | One Chat question sent through direct HTTP |
+| [examples/python_chat.py](examples/python_chat.py) | The same question through the official Python API client |
 | [scripts/run_diagnostics.py](scripts/run_diagnostics.py) | Search checks and optional diagnostics |
 | [scripts/run_mcp_test.py](scripts/run_mcp_test.py) | MCP discovery and a schema-checked Search call |
 | [PROMPT.md](PROMPT.md) | A setup prompt to use with Glean Tau |
@@ -215,6 +295,9 @@ When finished, revoke the temporary token through your approved workflow and rem
 ## Official references
 
 - [Platform Search](https://developers.glean.com/api/platform-api/platform-search)
+- [Chat overview](https://developers.glean.com/api/platform-api/chat-overview)
+- [Chat API reference](https://developers.glean.com/api/platform-api/platform-chat-create)
+- [Streaming Chat with citations](https://developers.glean.com/cookbook/streaming-chat-with-citations)
 - [Official API clients](https://developers.glean.com/libraries/api-clients)
 - [Glean-issued Client API tokens](https://developers.glean.com/api-info/client/authentication/glean-issued)
 - [MCP configuration and authentication](https://docs.glean.com/administration/platform/mcp/about)

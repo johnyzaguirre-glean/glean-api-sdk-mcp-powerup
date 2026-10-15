@@ -281,7 +281,7 @@ def execute(test_id, expected, operation):
 
 ENV_KEYS = {
     "GLEAN_BASE_URL", "GLEAN_TOKEN_FILE", "GLEAN_QUERY", "GLEAN_EXPECTED_TITLE",
-    "GLEAN_EXPECTED_URL", "GLEAN_MCP_URL",
+    "GLEAN_EXPECTED_URL", "GLEAN_MCP_URL", "GLEAN_CHAT_QUERY",
 }
 
 
