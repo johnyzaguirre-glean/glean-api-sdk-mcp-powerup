@@ -269,11 +269,13 @@ Replay uses the saved command and does not accept live-run overrides such as
 --confirm-sandbox or --search-args-file. A new live run requires deliberately
 omitting --replay and following the normal exercise safeguards.
 
-Verify that every demo shows the input before the response. Use captured input
-from the same run. Never silently rebuild old inputs from current .env settings.
-An old indexing upload may show the latest indexing preview only when clearly
-labeled CURRENT INPUT PREVIEW, not captured with that upload. Do not repeat an
-indexing write merely to refresh the display.
+Verify that every demo shows the actual request and response bodies from the same
+run. Preserve the API's original fields and structure. Do not add synthetic
+fields such as readiness_reason, NOT_RUN or custom result wrappers to the JSON.
+Put HTTP status and explanations in plain text before or after separator lines.
+Mark credential redactions explicitly. Show an empty body as empty. Never replace
+missing HTTP bodies with a current preview, SDK projection or diagnostic report.
+MCP over SSE should identify the actual received JSON-RPC message as such.
 
 At the end, list the open windows, commands run, results and incomplete checks.
 Point to the ignored reports in outputs/presenter/. Keep all terminal windows

@@ -71,7 +71,7 @@ By default the presenter runs the existing exercise and reports its real exit co
 | Replay rejects a command-line option | Replay uses the saved command. Remove live-run overrides such as `--confirm-sandbox` and `--search-args-file`. To run a new request, deliberately omit `--replay` and follow that exercise's normal safeguards. |
 | A replay still shows an earlier failure after the issue was fixed | This is the original recorded evidence, identified by its timestamp. Run the exercise live again if you need a new observation. Replay does not check current service state or credential validity. |
 
-Older open windows do not reload changed code automatically. Run the launcher again yourself to open the updated views, or rerun a single `--replay --step --hold` command. Existing windows are preserved. Older reports without a request capture are labeled accordingly; a current preview is not historical upload evidence.
+Older open windows do not reload changed code automatically. Run the launcher again yourself to open the updated views, or rerun a single `--replay --step --hold` command. Existing windows are preserved. Older reports without HTTP response capture are labeled accordingly and show no reconstructed response. Run a deliberately chosen live exercise to record real bodies. The presenter only prints actual payload JSON; its own calculations appear as plain text.
 
 Keep the terminal windows open after the demonstration until you are done using them. Presenter reports are stored under `outputs/presenter/` and ignored by Git. They can still contain private titles, links and Chat text. Review them before sharing.
 

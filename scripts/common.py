@@ -21,9 +21,9 @@ from enum import Enum
 from urllib import error, parse, request
 
 if __package__:
-    from scripts.presenter_capture import capture_input
+    from scripts.presenter_capture import capture_input, capture_response
 else:
-    from presenter_capture import capture_input
+    from presenter_capture import capture_input, capture_response
 
 ROOT = Path(__file__).resolve().parents[1]
 TIMEOUT = 30
@@ -196,6 +196,37 @@ def capture_http_request(prepared_request, token):
                   payload, token=token, endpoint=str(prepared_request.url))
 
 
+def capture_http_body(operation, raw, *, token="", endpoint=None, http_status=None,
+                      content_type=None):
+    """Record the actual bounded response body without adding or projecting fields."""
+    if not os.environ.get("GLEAN_PRESENTER_INPUT_FILE"):
+        return
+    if len(raw) > MAX_RESPONSE_BYTES:
+        raise ResponseBodyLimitExceeded("body_limit")
+    if not raw:
+        payload, body_format = None, "empty"
+    else:
+        try:
+            payload, body_format = json.loads(raw), "json"
+        except (UnicodeDecodeError, json.JSONDecodeError):
+            payload, body_format = raw.decode("utf-8", errors="replace"), "text"
+    capture_response(operation, payload, token=token, endpoint=endpoint,
+                     http_status=http_status, content_type=content_type,
+                     body_format=body_format)
+
+
+def capture_http_response(response, token=""):
+    """Read a bounded httpx stream once for capture; httpx caches it for the SDK."""
+    if not os.environ.get("GLEAN_PRESENTER_INPUT_FILE"):
+        return
+    prepared_request = response.request
+    raw = response.read()
+    capture_http_body(prepared_request.method + " " + prepared_request.url.path, raw,
+                      token=token, endpoint=str(prepared_request.url),
+                      http_status=response.status_code,
+                      content_type=response.headers.get("content-type"))
+
+
 def rest_probe(base_url, token, method, path, payload, kind):
     body = json.dumps(payload).encode() if payload is not None else None
     req = request.Request(base_url + path, data=body, method=method,
@@ -214,6 +245,9 @@ def rest_probe(base_url, token, method, path, payload, kind):
         raw = response.read(MAX_RESPONSE_BYTES + 1)
         if len(raw) > MAX_RESPONSE_BYTES:
             return {"http_status": status, "response_omitted": "body_limit"}
+        capture_http_body(method + " " + path, raw, token=token,
+                          endpoint=base_url + path, http_status=status,
+                          content_type=getattr(response, "headers", {}).get("content-type"))
         try:
             data = json.loads(raw)
         except (UnicodeDecodeError, json.JSONDecodeError):
@@ -243,6 +277,7 @@ def sdk_probe(base_url, token, query):
             response.close()
             raise SafeFailure("unexpected_compressed_response")
         response.stream = LimitedStream(response.stream)
+        capture_http_response(response, token)
     with httpx.Client(timeout=TIMEOUT, follow_redirects=False,
                       headers={"Accept-Encoding": "identity"},
                       event_hooks={"request": [lambda req: capture_http_request(req, token)],

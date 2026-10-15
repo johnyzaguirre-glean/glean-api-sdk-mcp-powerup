@@ -15,7 +15,7 @@ import sys
 import time
 from urllib import error, parse, request
 
-from common import (MAX_RESPONSE_BYTES, NoRedirect, SafeFailure, TIMEOUT, ROOT, capture_input,
+from common import (MAX_RESPONSE_BYTES, NoRedirect, SafeFailure, TIMEOUT, ROOT, capture_input, capture_response,
                     deadline, identifier, safe_scalar, safe_url, save_report, utc_now,
                     load_config, read_token, validate_query, serialized_output,
                     url_fingerprint, title_fingerprint)
@@ -73,6 +73,25 @@ def read_rpc(response, request_id):
             pieces.append(line[5:].lstrip(b" ").decode("utf-8").rstrip("\r\n"))
 
 
+def capture_bounded_body(response, operation, *, token, endpoint):
+    """Capture the actual response body for non-RPC replies, within the read limit."""
+    raw = response.read(MAX_RESPONSE_BYTES + 1)
+    if len(raw) > MAX_RESPONSE_BYTES:
+        raise SafeFailure("response exceeded the body limit")
+    if not raw:
+        payload, body_format = None, "empty"
+    else:
+        try:
+            payload = json.loads(raw)
+            body_format = "json"
+        except (ValueError, UnicodeDecodeError):
+            payload = raw.decode(response.headers.get_content_charset() or "utf-8", errors="replace")
+            body_format = "text"
+    capture_response(operation, payload, token=token, endpoint=endpoint,
+                     http_status=response.status,
+                     content_type=response.headers.get_content_type(), body_format=body_format)
+
+
 class Probe:
     def __init__(self, url, token, out, report):
         self.url, self.token, self.out, self.report = url, token, out, report
@@ -91,13 +110,13 @@ class Probe:
         if self.session_id:
             headers["Mcp-Session-Id"] = self.session_id
         body = json.dumps(payload).encode() if payload is not None else None
+        operation = method + " " + parse.urlsplit(self.url).path
         result = None
         try:
             with deadline():
                 req = request.Request(self.url, data=body, method=method, headers=headers)
-                if payload is not None:
-                    capture_input("http_request", method + " " + label, payload,
-                                  token=self.token, endpoint=self.url)
+                capture_input("http_request", operation, payload,
+                              token=self.token, endpoint=self.url)
                 try:
                     response = self.opener.open(req, timeout=TIMEOUT)
                 except error.HTTPError as exc:
@@ -117,11 +136,16 @@ class Probe:
                         item["request_id"] = rid
                     is_notification = payload is not None and "id" not in payload
                     if method == "DELETE":
+                        capture_bounded_body(response, operation, token=self.token, endpoint=self.url)
                         item["cleanup_accepted_or_unsupported"] = response.status in (200, 202, 204, 405)
                     elif is_notification:
+                        capture_bounded_body(response, operation, token=self.token, endpoint=self.url)
                         item["accepted"] = response.status in (200, 202, 204)
                     elif response.status == 200:
                         data = read_rpc(response, payload["id"])
+                        capture_response(operation, data, token=self.token, endpoint=self.url,
+                                         http_status=response.status, content_type=item["content_type"],
+                                         body_format="jsonrpc_message" if item["content_type"] == "text/event-stream" else "json")
                         item["jsonrpc_response"] = data.get("jsonrpc") == "2.0"
                         if not item["jsonrpc_response"]:
                             raise SafeFailure("invalid JSON-RPC version")
@@ -134,6 +158,7 @@ class Probe:
                         else:
                             item["error"] = "missing_result_or_error"
                     else:
+                        capture_bounded_body(response, operation, token=self.token, endpoint=self.url)
                         item["error"] = "http_request_failed_body_omitted"
         except TimeoutError:
             item["error"] = "timeout_30_seconds"

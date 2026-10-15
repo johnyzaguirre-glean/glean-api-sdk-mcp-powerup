@@ -56,7 +56,7 @@ def main(argv=None):
             missing.append(item["name"])
     print("Glean PowerUp: recorded exercise windows")
     print("Each window shows the input first. Press Enter to reveal the saved response and its meaning.")
-    print("Requests and results carry the original run timestamp. Older uploads may use a labeled current preview.")
+    print("Requests and responses carry the original run timestamp. Missing bodies are never reconstructed.")
     print("Opening these windows does not rerun requests, consume model usage, or reupload a document.")
     if args.plan:
         for item in commands:

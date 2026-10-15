@@ -10,14 +10,14 @@ Want help from Glean Tau? Open [PROMPT.md](PROMPT.md), copy the prompt, and give
 
 ## Present the lab from separate terminal windows
 
-Use the presenter runner when you want an audience to see the goal, actual command, request input and response together. By default it runs the existing exercise live, prints a short explanation, captures and highlights the actual request JSON, then shows the response and explains the outcome. It keeps failures and incomplete checks visible. The separate `--replay` option displays a clearly labeled result saved from a previous real run.
+Use the presenter runner when you want an audience to see the goal, actual command, request input and response together. By default it runs the existing exercise live, prints a short explanation, captures and highlights the actual HTTP request and response bodies, then explains the outcome in plain text outside the JSON. It keeps failures and incomplete checks visible. The separate `--replay` option displays a clearly labeled result saved from a previous real run.
 
 Complete the setup below and the [Indexing SDK setup](indexing/README.md) before presenting. The full sequence needs two credentials: an approved User (self) Client API token with the access required for Search, Chat and the selected MCP server, plus a separate Indexing API token restricted to the demo datasource. Confirm that their expiry covers your entire session. Save them through the hidden token prompts before sharing your screen. Never put a token value in a command, terminal title or screenshot.
 
 1. Open a separate terminal **window** for each example you plan to show.
 2. In every window, change into this repository with `cd`.
 3. Run one command from the table below. The presenter selects the appropriate child Python environment automatically, including `.venv-indexing` for indexing commands.
-4. Add `--step` to pause on the request payload before revealing the response. In an interactive terminal, press Enter once to show the response and its meaning. The live request has already completed when this presentation pause appears.
+4. Add `--step` to pause on the request payload before revealing the response. In an interactive terminal, press Enter to show the response, then press Enter again to advance to the next request when an exercise makes several calls. The live request has already completed when this presentation pause appears.
 5. Leave the window open after the result. `--hold` waits for another Enter before returning to the shell.
 
 Start by listing the available examples. This does not contact Glean:
@@ -58,7 +58,11 @@ Useful controls:
 
 The request section shows the actual HTTP JSON, including SDK serialization, rather than rebuilding it from today's `.env`. Search shows the query and page size. Chat shows the question and storage options. MCP shows the initialization, discovery and tool-call arguments actually attempted. Indexing shows the document body and access rules, or the status/access lookup inputs. Only requests actually attempted are shown. The indexing preview is explicitly labeled as an SDK preview with nothing sent.
 
-Headers, credentials and MCP session identifiers are omitted. Input content is sanitized before display and storage. The runner saves owner-only request snapshots and response summaries under `outputs/presenter/`. These files are ignored by Git. Output can still include private questions, document content, reader emails, titles, links and Chat answers, so use an audience-appropriate sandbox and question. Keep terminal windows open for rehearsal or delivery, then revoke temporary credentials through your approved process when you finish.
+Each response body preserves the API's original field names, nesting and values. JSON is pretty-printed in full, with credentials replaced by `[REDACTED]`. No calculated fields, test-result envelopes or synthesized success objects appear in these payloads. HTTP status and content type are printed as text outside the body. An empty body is displayed as `(Empty body)`, never an invented `{}`. For MCP over SSE, the received JSON-RPC message is explicitly identified as coming from the event stream.
+
+Lab conclusions such as pass/fail, skipped checks and timestamp comparisons are plain text after a separator. The underlying entrypoints still produce internal diagnostic reports for automated checks, but the presenter does not render those reports as API JSON.
+
+Headers and MCP session identifiers are omitted. The runner saves owner-only request/response recordings and a separate internal diagnostic report under `outputs/presenter/`. These files are ignored by Git. Output can still include private questions, document content, reader emails, titles, links and Chat answers, so use an audience-appropriate sandbox and question. Keep terminal windows open for rehearsal or delivery, then revoke temporary credentials through your approved process when you finish.
 
 The optional presenter names `diagnostics-negative`, `diagnostics-filters` and `diagnostics-chat` run the corresponding extra diagnostics documented below. Negative checks deliberately send invalid requests. The diagnostic Chat probe uses a fixed prompt, not `GLEAN_CHAT_QUERY`. The token helpers and `indexing/index_test_user.py` are setup or administrator maintenance tools, not steps in this audience walkthrough.
 
@@ -80,7 +84,7 @@ When ready, **you can double-click `scripts/open_presenter_windows.command` in F
 ./scripts/open_presenter_windows.command
 ```
 
-This user-run macOS launcher opens a separate Terminal window for each saved exercise in teaching order. macOS may ask you to allow Terminal automation. Every window uses `--step --hold`: it starts with the input payload, waits for Enter to reveal the response, then stays open until you press Enter again. The launcher does not close existing windows. If macOS does not allow all windows to open, use the commands shown by `--plan` in separate windows yourself.
+This user-run macOS launcher opens a separate Terminal window for each saved exercise in teaching order. macOS may ask you to allow Terminal automation. Every window uses `--step --hold`: it starts with the input payload, waits for Enter to reveal the response, and steps through each request/response pair before holding the completed output open. The launcher does not close existing windows. If macOS does not allow all windows to open, use the commands shown by `--plan` in separate windows yourself.
 
 Replaying results makes no Glean requests, consumes no model usage and does not repeat the indexing upload. It does not verify that a token is still valid or that the sandbox has the same state now. To display one recorded example manually on any supported terminal:
 
@@ -88,7 +92,7 @@ Replaying results makes no Glean requests, consumes no model usage and does not 
 .venv/bin/python scripts/present.py search-rest --replay --color always --hold --step
 ```
 
-Replay uses the input captured with that run, even if `.env` later changes. Older recordings without inputs say so. For an older indexing upload, the latest saved indexing preview can appear under **CURRENT INPUT PREVIEW**, with its own timestamp and an explicit statement that it was not captured with the upload. This does not prove the old upload used that exact payload. Do not repeat a write merely to improve the display.
+Replay uses the actual request and response bodies captured with that run, even if `.env` later changes. Older recordings without response bodies say so and show no reconstructed response. Current configuration, previews and diagnostic reports are never substituted for missing HTTP evidence.
 
 Replay uses the original saved command. Do not add live-run options such as `--confirm-sandbox` or `--search-args-file`. To obtain new evidence, deliberately run that exercise without `--replay`, following its normal setup and upload safeguards.
 

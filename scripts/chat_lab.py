@@ -12,7 +12,7 @@ from urllib.parse import quote
 
 from scripts.common import (
     MAX_RESPONSE_BYTES, ROOT, QuietLogger, ResponseBodyLimitExceeded,
-    SafeFailure, capture_http_request, execute, identifier, load_config, read_token, safe_url,
+    SafeFailure, capture_http_request, capture_http_response, execute, identifier, load_config, read_token, safe_url,
     save_report, serialized_output, validate_base,
 )
 
@@ -174,6 +174,7 @@ def bounded_client(observation, token=""):
             response.close()
             raise SafeFailure("unexpected_compressed_response")
         response.stream = LimitedStream(response.stream)
+        capture_http_response(response, token)
 
     with httpx.Client(timeout=CHAT_TIMEOUT, follow_redirects=False,
                       headers={"Accept-Encoding": "identity"},

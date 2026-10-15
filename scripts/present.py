@@ -25,8 +25,13 @@ import time
 import unicodedata
 from urllib.parse import urlsplit, urlunsplit
 
+if __package__:
+    from scripts.presenter_capture import MAX_INPUT_BYTES, redact_payload
+else:
+    from presenter_capture import MAX_INPUT_BYTES, redact_payload
+
 ROOT = Path(__file__).resolve().parents[1]
-MAX_CAPTURE_BYTES = 1_000_000
+MAX_CAPTURE_BYTES = 6_000_000
 MAX_DISPLAY_LINES = 75
 
 # Teaching order for a live session or a replay of recorded, real executions.
@@ -66,7 +71,7 @@ EXERCISES = {
         "Compare REST and Python results",
         "Run both Search paths and compare the exact returned titles and source links.",
         ("scripts/run_diagnostics.py",),
-        "Look for all_test_expectations_met and same_returned_titles_and_urls. Both should be true.",
+        "Compare the titles and source links in the two real Search responses. The plain-text conclusion reports whether they matched.",
         "Ranking can change between calls. A mismatch is evidence to investigate, not permission to hide a result."),
     "chat-rest": Exercise(
         "Turn a question into an answer with Chat",
@@ -91,31 +96,31 @@ EXERCISES = {
         "Call Search through MCP",
         "Connect, discover Search, validate its arguments and call it once using the configured query.",
         ("scripts/run_mcp_test.py",),
-        "Check search_protocol_success and the expected document match. Same destination, a different interface.",
+        "Inspect the JSON-RPC result and its returned document title and source link. Any protocol or tool error stays visible.",
         "The saved schema decides the required arguments. Do not guess extra fields.", timeout=240),
     "indexing-preview": Exercise(
         "Preview one custom document and its access rule",
         "A source has no native connector. Preview the fictional runbook we will submit with a one-user ACL.",
         ("indexing/push_demo.py",),
-        "Check the datasource, document and acl_user_count: 1. network_requests: 0 confirms this is only a preview.",
+        "Inspect the document body and permissions.allowedUsers. This SDK preview makes no HTTP request.",
         "No token is read and nothing is sent. Preview is not indexing proof.", indexing=True),
     "indexing-apply": Exercise(
         "Submit the fictional runbook with the Indexing SDK",
         "Upload or update exactly one demo document, including its source link, content and one-user ACL.",
         ("indexing/push_demo.py", "--apply"),
-        "operation_completed: true means the upload was accepted. Next, check indexing and access separately.",
+        "HTTP 200 means the upload was accepted. An empty response body is normal here. Check processing and access separately.",
         "This writes the configured demo document. An accepted upload is not yet proof of search visibility.", indexing=True),
     "indexing-status": Exercise(
         "Check processing and the intended reader's access",
         "Read the demo document's status and ask whether the configured user can access it.",
         ("indexing/check_demo.py",),
-        "Look for latest_upload_indexed and configured_user_has_access. Then verify actual search as that reader.",
+        "Inspect uploadStatus, indexingStatus, lastUploadedAt and lastIndexedAt in the real status response, then hasAccess in the separate access response.",
         "Processing is asynchronous. A pending check should lead to another read-only check, not a blind reupload.", indexing=True),
     "indexing-permissions": Exercise(
         "Check the permission evidence we actually have",
         "Check datasource identities and the allowed reader, plus a denied reader if one is configured.",
         ("indexing/check_permissions.py",),
-        "Read PASS, FAIL and NOT_RUN literally. A missing denied reader is incomplete coverage, not denial proof.",
+        "Inspect the responses to the checks actually sent. The plain-text explanation identifies skipped reader checks and incomplete coverage.",
         "This does not test sign-in, actual search or later revocation. Each reader still needs an end-to-end check.", indexing=True),
     "diagnostics-negative": Exercise(
         "Show controlled invalid-request errors",
@@ -276,10 +281,10 @@ class Screen:
         for line in textwrap.wrap(clean_text(text), width=100):
             self.line("  " + line)
 
-    def json(self, value):
-        rendered = json.dumps(value, indent=2, ensure_ascii=False)
+    def json(self, value, complete=False):
+        rendered = json.dumps(value, indent=2, ensure_ascii=True)
         lines = rendered.splitlines()
-        shortened = len(lines) > MAX_DISPLAY_LINES
+        shortened = not complete and len(lines) > MAX_DISPLAY_LINES
         if shortened:
             lines = lines[:MAX_DISPLAY_LINES]
         # Tokenize JSON without changing any literal text. Only our own ANSI codes
@@ -320,12 +325,12 @@ def run_child(command, timeout, root=ROOT):
         errors.seek(0, 2)
         stderr_present = errors.tell() > 0
         inputs.seek(0)
-        captured_inputs = []
-        for line in inputs.read(256_001).splitlines()[:32]:
+        exchanges = []
+        for line in inputs.read(MAX_INPUT_BYTES + 1).splitlines()[:64]:
             try:
                 event = json.loads(line)
-                if isinstance(event, dict) and event.get("kind") in {"http_request", "sdk_preview", "sdk_call"}:
-                    captured_inputs.append(scrub(event))
+                if isinstance(event, dict) and event.get("kind") in {"http_request", "http_response", "sdk_preview", "sdk_call"}:
+                    exchanges.append(redact_payload(event))
             except (ValueError, UnicodeError):
                 continue
     issue = None
@@ -345,8 +350,19 @@ def run_child(command, timeout, root=ROOT):
     if returncode == 0 and report is None:
         returncode = 1  # Never announce a pass without returned structured evidence.
     return {"exit_code": returncode, "elapsed_seconds": round(time.monotonic() - started, 2),
-            "report": scrub(report), "inputs": captured_inputs,
+            "report": scrub(report), "exchanges": exchanges,
+            "inputs": [event for event in exchanges if event["kind"] != "http_response"],
             "runner_issue": issue, "stderr_present": stderr_present}
+
+
+def safe_recording(value):
+    result = scrub(value)
+    # Preserve complete captured bodies, including original nesting, URL query
+    # parameters and long arrays. The lab summary remains separately scrubbed.
+    for key in ("inputs", "exchanges"):
+        if key in value:
+            result[key] = redact_payload(value[key])
+    return result
 
 
 def save_result(path, value):
@@ -411,84 +427,108 @@ def load_recording(name, root=ROOT):
             raise ValueError
         if saved["exit_code"] == 0 and saved.get("report") is None:
             raise ValueError
-        if "inputs" in saved:
-            if not isinstance(saved["inputs"], list) or len(saved["inputs"]) > 32:
+        for key in ("inputs", "exchanges"):
+            if key not in saved:
+                continue
+            if not isinstance(saved[key], list) or len(saved[key]) > 64:
                 raise ValueError
-            for event in saved["inputs"]:
+            for event in saved[key]:
                 if (not isinstance(event, dict)
-                        or event.get("kind") not in {"http_request", "sdk_preview", "sdk_call"}
+                        or event.get("kind") not in {"http_request", "http_response", "sdk_preview", "sdk_call"}
                         or not isinstance(event.get("operation"), str)
-                        or ("endpoint" in event and not isinstance(event["endpoint"], str))
-                        or (event.get("payload") is not None and not isinstance(event["payload"], (dict, list)))):
+                        or (event.get("endpoint") is not None and not isinstance(event["endpoint"], str))):
                     raise ValueError
     except (OSError, ValueError, UnicodeError, TypeError):
         raise ValueError(f"No valid recorded presenter result for {name}. Run that exercise first.") from None
-    return scrub(saved)
+    return safe_recording(saved)
 
 
 def show_result(screen, name, result, path, recorded=False):
+    """Plain-language interpretation only. Never present a lab report as JSON."""
     exercise = EXERCISES[name]
     label, meaning = classify(name, result["exit_code"], result["report"])
     screen.line()
+    screen.line("=" * 100, "blue")
+    screen.line("WHAT THIS MEANS | lab interpretation, not API response fields", "cyan")
     screen.line(f"{label} | {result['elapsed_seconds']:.2f}s | exit {result['exit_code']}",
-                "green" if result["exit_code"] == 0 else "yellow" if label == "PARTIAL" else "red")
+                "green" if result["exit_code"] == 0 else "yellow")
     screen.line(meaning)
     if result.get("runner_issue"):
         screen.line(result["runner_issue"], "yellow")
-    screen.line()
-    screen.line("RECORDED EVIDENCE | selected fields from the saved run" if recorded else
-                "RETURNED EVIDENCE | selected fields from this run", "cyan")
-    screen.json(compact_report(name, result["report"]))
-    screen.line()
+    report = result.get("report") or {}
+    document = report.get("document", report)
+    if document.get("readiness_reason") == "indexed_version_older_than_upload":
+        screen.paragraph("TIMESTAMP CHECK", "The last indexed time is earlier than the last uploaded time. Our lab cannot confirm that the latest upload has been indexed.")
+    for key, title in (("allowed_reader", "Allowed-reader check"), ("denied_reader", "Denied-reader check")):
+        check = report.get(key, {})
+        if check.get("result") == "NOT_RUN":
+            reason = {"document_not_confirmed_indexed": "the latest upload is not confirmed indexed",
+                      "second_reader_not_configured": "no second reader is configured"}.get(check.get("reason"), "its prerequisite was not confirmed")
+            screen.line(title + " was not run because " + reason + ".")
     screen.paragraph("HOW TO READ THIS", exercise.watch)
     screen.paragraph("LIMIT", exercise.boundary)
-    screen.line("Saved private report: " + str(path.relative_to(ROOT)), "dim")
-    if result.get("stderr_present"):
-        screen.line("The child also wrote diagnostic stderr. Raw stderr is omitted from the presenter report.", "yellow")
+    screen.line("Saved private recording: " + str(path.relative_to(ROOT)), "dim")
+    screen.line("=" * 100, "blue")
 
 
-def show_inputs(screen, name, result, *, recorded=False, fallback=None):
-    inputs = result.get("inputs") or []
-    screen.line()
-    if not inputs and fallback:
-        screen.line("CURRENT INPUT PREVIEW | not captured with the recorded upload", "yellow")
-        screen.line("Preview recorded at: " + fallback["completed_at"])
-        screen.line("This shows the current demo document. It does not prove the earlier upload used this exact payload.")
-        inputs = fallback.get("inputs") or []
-    elif inputs:
-        screen.line("RECORDED INPUT | captured during that run" if recorded else
-                    "REQUEST INPUT | captured by this exercise", "cyan")
-    else:
-        if recorded:
-            screen.line("INPUT NOT RECORDED | this result has no request capture", "yellow")
-            screen.line("Run a read-only exercise live to capture its inputs. Do not reupload a document just to refresh this view.")
-        else:
-            screen.line("NO INPUT CAPTURE | no request payload was recorded by this exercise", "yellow")
-            screen.line("The exercise may have stopped before sending a request. Read its result below.")
-        return
-    screen.line("Credential values and HTTP headers are omitted. Displayed content is sanitized.", "dim")
-    for index, event in enumerate(inputs, 1):
-        screen.line()
-        kind = event.get("kind")
-        label = "SDK PREVIEW (nothing sent)" if kind == "sdk_preview" else "SDK ARGUMENTS" if kind == "sdk_call" else "HTTP REQUEST"
-        screen.line(f"{index}. {label} | {event.get('operation', '')}", "bold")
-        if event.get("endpoint"):
-            screen.line(event["endpoint"], "blue")
-        payload = event.get("payload")
-        if payload is None:
-            screen.line("No request body.")
-        else:
-            screen.json(scrub(payload))
-
-
-def pause_for_response(screen, args):
+def pause(screen, args, message):
     if args.step and sys.stdin.isatty():
-        screen.line()
-        screen.line("INPUT ABOVE | Press Enter to reveal the response and what it means.", "cyan")
+        screen.line(message, "cyan")
         try:
             input()
         except EOFError:
             pass
+
+
+def show_exchanges(screen, name, result, args, recorded=False):
+    """Render only authentic bodies as JSON, with metadata outside each body."""
+    events = result.get("exchanges") or result.get("inputs") or []
+    if not events:
+        screen.line("No request or response bodies were captured with this recording. No reconstructed JSON is shown.", "yellow")
+        return
+    screen.line("The following bodies were captured during the recorded run." if recorded else
+                "The following bodies were captured during this run.")
+    screen.line("JSON is pretty-printed in full. Credential redactions appear as [REDACTED]. Headers are omitted.", "dim")
+    request_count = response_count = 0
+    for position, event in enumerate(events):
+        kind = event["kind"]
+        screen.line()
+        screen.line("-" * 100, "blue")
+        if kind == "http_response":
+            response_count += 1
+            screen.line(f"RESPONSE {response_count} | HTTP {event.get('http_status', 'unknown')}", "bold")
+            if event.get("content_type"):
+                screen.line("Content-Type: " + event["content_type"])
+            if event.get("body_format") == "jsonrpc_message":
+                screen.line("JSON-RPC message received from the SSE response stream:")
+        elif kind == "sdk_preview":
+            screen.line("SDK INPUT PREVIEW | no HTTP request was sent", "bold")
+            screen.line(event["operation"])
+        else:
+            request_count += 1
+            screen.line(f"REQUEST {request_count} | " + event["operation"], "bold")
+            if event.get("endpoint"):
+                screen.line(event["endpoint"], "blue")
+        screen.line("-" * 100, "blue")
+        if event.get("body_omitted_reason"):
+            screen.line(event["body_omitted_reason"], "yellow")
+        elif event.get("body_format") == "empty" or (kind != "http_response" and event.get("payload") is None):
+            screen.line("(Empty body)")
+        elif event.get("body_format") == "text":
+            screen.line(event.get("payload", ""))
+        else:
+            screen.json(redact_payload(event.get("payload")), complete=True)
+        screen.line("-" * 100, "blue")
+        if position + 1 < len(events):
+            following = events[position + 1]["kind"]
+            pause(screen, args, "Press Enter to show the response." if following == "http_response" else
+                  "Press Enter to show the next request.")
+    if request_count and not response_count:
+        screen.line("The actual response body was not captured in this older recording. No substitute response is shown.", "yellow")
+
+
+def pause_for_response(screen, args):
+    pause(screen, args, "Press Enter to reveal the response and what it means.")
 
 
 def hold_window(screen):
@@ -516,14 +556,7 @@ def replay(name, args, screen):
     if args.plan:
         screen.line("PLAN ONLY | recording validated; no process started.", "yellow")
         return 0
-    fallback = None
-    if name == "indexing-apply" and not saved.get("inputs"):
-        try:
-            fallback = load_recording("indexing-preview")
-        except ValueError:
-            pass
-    show_inputs(screen, name, saved, recorded=True, fallback=fallback)
-    pause_for_response(screen, args)
+    show_exchanges(screen, name, saved, args, recorded=True)
     show_result(screen, name, saved, ROOT / "outputs" / "presenter" / (name + ".json"), recorded=True)
     screen.line("To rerun live, use the command shown above. Recheck credential expiry and write intent first.", "dim")
     if args.hold:
@@ -595,9 +628,8 @@ def main(argv=None):
              "completed_at": datetime.now(timezone.utc).isoformat(), "command": relative_command,
              "outcome": label, **result}
     path = ROOT / "outputs" / "presenter" / (args.exercise + ".json")
-    save_result(path, scrub(saved))
-    show_inputs(screen, args.exercise, result)
-    pause_for_response(screen, args)
+    save_result(path, safe_recording(saved))
+    show_exchanges(screen, args.exercise, result, args)
     show_result(screen, args.exercise, result, path)
     if args.hold:
         hold_window(screen)

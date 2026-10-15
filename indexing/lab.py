@@ -18,7 +18,7 @@ from urllib.parse import urlsplit
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 from scripts.common import (MAX_RESPONSE_BYTES, QuietLogger, ResponseBodyLimitExceeded,
-                            SafeFailure, TIMEOUT, capture_http_request, capture_input,
+                            SafeFailure, TIMEOUT, capture_http_request, capture_http_response, capture_input,
                             deadline, guarded_main, identifier,
                             read_token, serialized_output, token_path, validate_base,
                             validate_query, validate_token)
@@ -152,6 +152,7 @@ def bounded_client(config, token, observations, transport=None):
             response.close()
             raise SafeFailure("unexpected compressed response")
         response.stream = LimitedStream(response.stream)
+        capture_http_response(response, token)
 
     @contextlib.contextmanager
     def client_factory():
