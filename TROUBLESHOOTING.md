@@ -51,6 +51,27 @@ Use these checks in order:
 
 The Glean app's total result count does not need to equal a small API page. Matching one known document is a focused retrieval check. It does not prove access isolation across multiple users, every integration scenario, or all MCP host behavior.
 
+## Presenter windows
+
+By default the presenter runs the existing exercise and reports its real exit code. With `--replay`, it displays the saved result and original exit code, prominently labeled as recorded. Use the [presenter walkthrough](README.md#present-the-lab-from-separate-terminal-windows) to prepare one command per window.
+
+| What you see | What to check next |
+| --- | --- |
+| Colors are missing or escape codes appear literally | Use `--color always` in an ANSI-capable terminal, or `--color never` for plain text. Syntax highlighting does not change the saved result. |
+| The presenter waits after the result | This is `--hold`. Leave it waiting to keep the showcase visible. Press Enter when ready to return to the shell. |
+| An indexing command reports a missing dependency | Install `indexing/requirements.txt` in `.venv-indexing`. The presenter chooses that interpreter automatically; do not install the older indexing dependencies into `.venv`. |
+| MCP Search needs an argument file | Run `mcp-discover`, inspect its current Search schema, and supply only the reviewed fields. See the README before using `--search-args-file` or a nested `--query-pointer`. |
+| Upload succeeds but status remains pending | An upload acceptance is not search proof. Allow processing time and rerun `indexing-status`, which is read-only. Preserve the pending result instead of triggering repeated uploads. |
+| Permissions shows `PARTIAL` and exit code `2` | The allowed case passed, but no second reader was configured. Keep that limitation visible. It does not establish denied-user access or revocation behavior. |
+| A request expires during the session | Check the approved credential's actual expiration and timezone in the admin workflow. Prepare a replacement through the hidden prompt before resuming screen sharing. Do not paste the token into a displayed command. |
+| A window contains a failure | Keep the actual outcome visible. Check its safe status or error with the matching troubleshooting section. Do not run a loop of retries or substitute an old successful report. |
+| The recorded-window launcher reports missing or invalid recordings | Run `.venv/bin/python scripts/open_presenter_windows.py --plan`. It lists the missing regular exercises without opening an app. Record those exercises live through the presenter first. A fresh clone has no recordings because reports are ignored by Git. |
+| macOS does not open every window | Run the `.command` launcher yourself and review any macOS automation prompt. If it still cannot open all windows, run the commands from `--plan` in separate terminals. Existing windows remain open and replay sends no requests. |
+| Replay rejects a command-line option | Replay uses the saved command. Remove live-run overrides such as `--confirm-sandbox` and `--search-args-file`. To run a new request, deliberately omit `--replay` and follow that exercise's normal safeguards. |
+| A replay still shows an earlier failure after the issue was fixed | This is the original recorded evidence, identified by its timestamp. Run the exercise live again if you need a new observation. Replay does not check current service state or credential validity. |
+
+Keep the terminal windows open after the demonstration until you are done using them. Presenter reports are stored under `outputs/presenter/` and ignored by Git. They can still contain private titles, links and Chat text. Review them before sharing.
+
 ## Get help without exposing credentials
 
 Share a short, reviewed summary such as:

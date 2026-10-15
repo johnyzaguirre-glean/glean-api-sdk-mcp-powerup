@@ -8,6 +8,85 @@ This small lab is for Tech GTM: solutions engineers, solutions architects, AI ou
 
 Want help from Glean Tau? Open [PROMPT.md](PROMPT.md), copy the prompt, and give Tau access to this repository. It will walk through the same steps below.
 
+## Present the lab from separate terminal windows
+
+Use the presenter runner when you want an audience to see the goal, the actual command, and a readable result together. By default it runs the existing exercise live, prints a short explanation, highlights the JSON output, and explains the outcome. It keeps failures and incomplete checks visible. The separate `--replay` option displays a clearly labeled result saved from a previous real run.
+
+Complete the setup below and the [Indexing SDK setup](indexing/README.md) before presenting. The full sequence needs two credentials: an approved User (self) Client API token with the access required for Search, Chat and the selected MCP server, plus a separate Indexing API token restricted to the demo datasource. Confirm that their expiry covers your entire session. Save them through the hidden token prompts before sharing your screen. Never put a token value in a command, terminal title or screenshot.
+
+1. Open a separate terminal **window** for each example you plan to show.
+2. In every window, change into this repository with `cd`.
+3. Run one command from the table below. The presenter selects the appropriate child Python environment automatically, including `.venv-indexing` for indexing commands.
+4. Leave the window open after it finishes. The command and its result stay available for the audience. `--hold` keeps the presenter waiting until you press Enter, so do not press Enter until you are ready to return to the shell.
+
+Start by listing the available examples. This does not contact Glean:
+
+```sh
+.venv/bin/python scripts/present.py --list
+```
+
+Use these commands in order. Each row is a separate window:
+
+| Window | Run from the repository root | What the audience should learn |
+| --- | --- | --- |
+| 1. REST Search | `.venv/bin/python scripts/present.py search-rest --color always --hold` | A direct HTTP request finds the known document. |
+| 2. Python Search | `.venv/bin/python scripts/present.py search-python --color always --hold` | The official client expresses the same Search request in Python. |
+| 3. Compare Search | `.venv/bin/python scripts/present.py search-compare --color always --hold` | Compare both live result sets, including the expected title and source link. |
+| 4. REST Chat | `.venv/bin/python scripts/present.py chat-rest --color always --hold` | Chat generates an answer that needs source review. |
+| 5. Python Chat | `.venv/bin/python scripts/present.py chat-python --color always --hold` | The Python client reaches the same Chat API. Generated wording may differ. |
+| 6. Discover MCP | `.venv/bin/python scripts/present.py mcp-discover --color always --hold` | Inspect the actual Search tool schema before sending arguments. |
+| 7. Call MCP Search | `.venv/bin/python scripts/present.py mcp-search --search-args-file outputs/search-args.json --color always --hold` | Invoke the discovered Search tool using reviewed arguments. |
+| 8. Preview indexing | `.venv/bin/python scripts/present.py indexing-preview --color always --hold` | Preview the fictional runbook and its one-reader ACL without a network call. |
+| 9. Upload the runbook | `.venv/bin/python scripts/present.py indexing-apply --confirm-sandbox YOUR-SANDBOX-be.glean.com --color always --hold` | Submit one document using the Indexing SDK. Replace the hostname with your approved sandbox's exact hostname. |
+| 10. Check indexing | `.venv/bin/python scripts/present.py indexing-status --color always --hold` | Check that processing completed and the configured reader has access. |
+| 11. Check permissions | `.venv/bin/python scripts/present.py indexing-permissions --color always --hold` | Separate allowed-reader evidence, denied-reader evidence and actual search coverage. |
+
+For MCP, create `outputs/search-args.json` only after reviewing discovery, as explained in [the MCP exercise](#optional-try-mcp). If the schema requires only `query`, omit `--search-args-file`. If its query is nested, use the reviewed `--query-pointer` path. Do not use the table as a reason to guess tool arguments.
+
+Indexing is asynchronous. After the upload, allow processing time before running the status and permission windows. If the status is pending, preserve that result and deliberately rerun the read-only status check later. Do not reupload just to hurry processing. The permission exercise can correctly show **PARTIAL** when the allowed reader passes but no second reader is configured. That is not evidence of a denied-user or revocation test. Finish the indexing demonstration by finding the runbook in the Glean app as the intended reader.
+
+Useful controls:
+
+```sh
+# Preview the exact action without running it.
+.venv/bin/python scripts/present.py search-rest --plan
+
+# Use plain text if your terminal does not render ANSI colors well.
+.venv/bin/python scripts/present.py search-rest --color never --hold
+```
+
+The runner saves owner-only summaries under `outputs/presenter/`. These files are ignored by Git. Output can still include private titles, links and Chat answers, so use an audience-appropriate sandbox and question. Keep terminal windows open for rehearsal or delivery, then revoke temporary credentials through your approved process when you finish.
+
+The optional presenter names `diagnostics-negative`, `diagnostics-filters` and `diagnostics-chat` run the corresponding extra diagnostics documented below. Negative checks deliberately send invalid requests. The diagnostic Chat probe uses a fixed prompt, not `GLEAN_CHAT_QUERY`. The token helpers and `indexing/index_test_user.py` are setup or administrator maintenance tools, not steps in this audience walkthrough.
+
+### Reopen recorded results in 11 windows on macOS
+
+After running all 11 exercises live, you can reopen their saved evidence for the presentation without sending the requests again. This is useful for keeping a completed rehearsal ready on screen. Each window prominently says **RECORDED RESULT**, shows the run's timestamp and original command, and preserves its actual success, failure or partial result.
+
+First, inspect the proposed windows and check for missing recordings. This reads the saved presenter reports, opens no applications and contacts no service:
+
+```sh
+.venv/bin/python scripts/open_presenter_windows.py --plan
+```
+
+The launcher needs a valid report for every one of the 11 regular exercises in `outputs/presenter/`. Reports are local and ignored by Git, so a fresh clone will not have them. Run and record any missing exercises first using the commands above. Optional diagnostic reports are not required.
+
+When ready, **you can double-click `scripts/open_presenter_windows.command` in Finder**, or run this yourself from the repository root:
+
+```sh
+./scripts/open_presenter_windows.command
+```
+
+This user-run macOS launcher opens a separate Terminal window for each saved exercise in teaching order. macOS may ask you to allow Terminal automation. Every window uses `--hold` and stays open with its output until you finish using it. The launcher does not close existing windows. If macOS does not allow all windows to open, use the commands shown by `--plan` in separate windows yourself.
+
+Replaying results makes no Glean requests, consumes no model usage and does not repeat the indexing upload. It does not verify that a token is still valid or that the sandbox has the same state now. To display one recorded example manually on any supported terminal:
+
+```sh
+.venv/bin/python scripts/present.py search-rest --replay --color always --hold
+```
+
+Replay uses the original saved command. Do not add live-run options such as `--confirm-sandbox` or `--search-args-file`. To obtain new evidence, deliberately run that exercise without `--replay`, following its normal setup and upload safeguards.
+
 ## What you will prove
 
 1. Your account can find a chosen document in the Glean app.
@@ -291,6 +370,8 @@ When finished, revoke the temporary token through your approved workflow and rem
 | [examples/python_chat.py](examples/python_chat.py) | The same question through the official Python API client |
 | [scripts/run_diagnostics.py](scripts/run_diagnostics.py) | Search checks and optional diagnostics |
 | [scripts/run_mcp_test.py](scripts/run_mcp_test.py) | MCP discovery and a schema-checked Search call |
+| [scripts/present.py](scripts/present.py) | Run one live exercise with context, a visible command and highlighted output |
+| [scripts/open_presenter_windows.command](scripts/open_presenter_windows.command) | User-run macOS launcher that opens all 11 recorded results in separate windows |
 | [PROMPT.md](PROMPT.md) | A setup prompt to use with Glean Tau |
 | [TROUBLESHOOTING.md](TROUBLESHOOTING.md) | Common errors and what to check next |
 

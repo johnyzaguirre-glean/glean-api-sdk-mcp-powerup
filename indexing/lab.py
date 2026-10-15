@@ -8,6 +8,7 @@ from datetime import datetime
 import importlib.metadata
 import json
 import logging
+import math
 import os
 from pathlib import Path
 import re
@@ -207,7 +208,8 @@ def status_summary(response):
     entries = response.document_statuses or []
     matches = [item for item in entries if item.doc_id == DOCUMENT_ID and item.object_type == OBJECT_TYPE]
     if len(matches) != 1 or not matches[0].debug_info or not matches[0].debug_info.status:
-        return {"matching_document_status_found": False, "latest_upload_indexed": False}
+        return {"matching_document_status_found": False, "latest_upload_indexed": False,
+                "timestamps_valid": False, "readiness_reason": "no_matching_document"}
     status = matches[0].debug_info.status
     allowed = {"NOT_UPLOADED", "UPLOADED", "NOT_INDEXED", "INDEXED", "STATUS_UNKNOWN"}
     report = {"matching_document_status_found": True}
@@ -218,13 +220,23 @@ def status_summary(response):
         if not isinstance(value, str):
             return None
         try:
-            return float(value)
+            parsed = float(value)
         except ValueError:
             try:
-                return datetime.fromisoformat(value.replace("Z", "+00:00")).timestamp()
-            except ValueError:
+                parsed = datetime.fromisoformat(value.replace("Z", "+00:00")).timestamp()
+            except (ValueError, OverflowError, OSError):
                 return None
+        return parsed if math.isfinite(parsed) else None
     uploaded, indexed = timestamp(status.last_uploaded_at), timestamp(status.last_indexed_at)
+    report["timestamps_valid"] = uploaded is not None and indexed is not None
     report["latest_upload_indexed"] = (status.indexing_status == "INDEXED"
         and uploaded is not None and indexed is not None and indexed >= uploaded)
+    if status.indexing_status != "INDEXED":
+        report["readiness_reason"] = "not_indexed"
+    elif not report["timestamps_valid"]:
+        report["readiness_reason"] = "timestamp_missing_or_invalid"
+    elif not report["latest_upload_indexed"]:
+        report["readiness_reason"] = "indexed_version_older_than_upload"
+    else:
+        report["readiness_reason"] = "latest_upload_indexed"
     return report

@@ -158,10 +158,53 @@ class IndexingLabTests(unittest.TestCase):
         self.assertEqual(requests[1].url.path, "/api/index/v1/checkdocumentaccess")
         summary = status_summary(response)
         self.assertTrue(summary["latest_upload_indexed"])
+        self.assertEqual(summary["readiness_reason"], "latest_upload_indexed")
         self.assertNotIn("never-print", json.dumps(summary))
         body["documentStatuses"][0]["debugInfo"]["status"]["lastIndexedAt"] = "2025-01-01T00:00:00Z"
-        self.assertFalse(status_summary(DebugDocumentsResponse.model_validate(body))["latest_upload_indexed"])
-        self.assertFalse(status_summary(DebugDocumentsResponse(document_statuses=[]))["latest_upload_indexed"])
+        older = status_summary(DebugDocumentsResponse.model_validate(body))
+        self.assertFalse(older["latest_upload_indexed"])
+        self.assertEqual(older["readiness_reason"], "indexed_version_older_than_upload")
+        missing = status_summary(DebugDocumentsResponse(document_statuses=[]))
+        self.assertFalse(missing["latest_upload_indexed"])
+        self.assertEqual(missing["readiness_reason"], "no_matching_document")
+
+    def test_status_readiness_reasons_distinguish_pending_and_unusable_timestamps(self):
+        cases = [
+            ("NOT_INDEXED", "100", "101", "not_indexed", True, False),
+            ("NOT_INDEXED", None, None, "not_indexed", False, False),
+            ("INDEXED", "100", None, "timestamp_missing_or_invalid", False, False),
+            ("INDEXED", "invalid-private-value", "101", "timestamp_missing_or_invalid", False, False),
+            ("INDEXED", "100", "NaN", "timestamp_missing_or_invalid", False, False),
+            ("INDEXED", "100", "Infinity", "timestamp_missing_or_invalid", False, False),
+            ("INDEXED", "100", "99", "indexed_version_older_than_upload", True, False),
+            ("INDEXED", "100", "100", "latest_upload_indexed", True, True),
+            ("INDEXED", "100", "101", "latest_upload_indexed", True, True),
+        ]
+        for state, uploaded, indexed, reason, valid, ready in cases:
+            with self.subTest(state=state, uploaded=uploaded, indexed=indexed):
+                body = {"documentStatuses": [{"docId": DOCUMENT_ID, "objectType": OBJECT_TYPE,
+                    "debugInfo": {"status": {"uploadStatus": "UPLOADED", "indexingStatus": state,
+                        "lastUploadedAt": uploaded, "lastIndexedAt": indexed}}}]}
+                summary = status_summary(DebugDocumentsResponse.model_validate(body))
+                self.assertEqual(summary["readiness_reason"], reason)
+                self.assertIs(summary["timestamps_valid"], valid)
+                self.assertIs(summary["latest_upload_indexed"], ready)
+                self.assertNotIn("invalid-private-value", json.dumps(summary))
+                self.assertNotIn("last_uploaded_at", summary)
+                self.assertNotIn("last_indexed_at", summary)
+
+    def test_missing_or_ambiguous_document_status_has_no_readiness_claim(self):
+        entry = {"docId": DOCUMENT_ID, "objectType": OBJECT_TYPE,
+                 "debugInfo": {"status": {"indexingStatus": "INDEXED",
+                     "lastUploadedAt": "100", "lastIndexedAt": "101"}}}
+        for entries in ([], [entry, entry], [{"docId": "other", "objectType": OBJECT_TYPE}],
+                        [{"docId": DOCUMENT_ID, "objectType": OBJECT_TYPE}]):
+            with self.subTest(entries=entries):
+                summary = status_summary(DebugDocumentsResponse.model_validate({"documentStatuses": entries}))
+                self.assertFalse(summary["matching_document_status_found"])
+                self.assertFalse(summary["latest_upload_indexed"])
+                self.assertFalse(summary["timestamps_valid"])
+                self.assertEqual(summary["readiness_reason"], "no_matching_document")
 
 
 if __name__ == "__main__":

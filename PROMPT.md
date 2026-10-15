@@ -1,9 +1,14 @@
 # Set up this lab with Glean Tau
 
+Repository: [Glean API, SDK and MCP PowerUp](https://github.com/johnyzaguirre-glean/glean-api-sdk-mcp-powerup/tree/main).
+
 Open this repository in the workspace you use with Glean Tau, then copy the prompt below into your conversation. This is a setup prompt, not a Tau installation guide. If Tau cannot access your files or terminal, it can walk you through the same steps.
 
 ```text
 Help me get this Glean API, Python client and optional MCP lab running.
+
+Use this repository:
+https://github.com/johnyzaguirre-glean/glean-api-sdk-mcp-powerup/tree/main
 
 Start by reading README.md, example.env, requirements.txt and the relevant
 scripts in this repository. Follow the actual files, not assumptions about
@@ -176,3 +181,96 @@ Never invent a successful live run from code inspection or an offline test.
 ## Optional Indexing SDK follow-up
 
 If my goal is to put new source content into Glean, use [indexing/PROMPT.md](indexing/PROMPT.md) and [indexing/README.md](indexing/README.md). That is a separate lab with a fictional Orion Service Recovery document. Keep its `.venv-indexing`, `indexing/.env` and Indexing API token separate from this Search/MCP setup. Start with the dry run and preserve the explicit sandbox upload guard. Do not install its older compatible API client into the Search environment.
+
+## Prepare a live presentation
+
+Use this after the basic lab is configured:
+
+```text
+Help me prepare this lab for an audience. I want a separate terminal window
+for each example, with its command and real result left visible after it runs.
+
+Repository:
+https://github.com/johnyzaguirre-glean/glean-api-sdk-mcp-powerup/tree/main
+
+Read the presenter section of README.md, scripts/present.py, TROUBLESHOOTING.md
+and the underlying exercise before running it. Start with
+.venv/bin/python scripts/present.py --list. Use --plan to inspect an action
+without contacting Glean. Follow the runner's actual supported options.
+
+Check both environments without displaying secrets: .venv is for Search,
+Chat and MCP; .venv-indexing is for the Indexing SDK. Preserve existing local
+settings. Do not source .env, print configuration files or token files, put
+credentials in command arguments, or enable verbose HTTP logging. Arrange
+token storage at the hidden prompts before any screen sharing. The full lab
+needs a user Client API token with the approved Search, Chat and MCP access,
+plus a separate Indexing API token scoped to the dedicated demo datasource.
+Confirm that the approved expiration covers the full presentation session.
+Do not silently broaden scopes or change user or datasource permissions.
+
+Open one terminal window per chosen example if you can control my desktop.
+Otherwise give me one copyable command at a time and tell me to open each in
+a new window. Use the repository root as the working directory. Use
+.venv/bin/python scripts/present.py NAME --color always --hold. The presenter
+selects the correct child interpreter. Leave the windows open when complete.
+Do not automatically clear them, close them or execute another example in
+the same window.
+
+Follow the README sequence: REST Search, Python Search, Search comparison,
+REST Chat, Python Chat, MCP discovery, MCP Search, indexing preview, indexing
+upload, indexing status, and permissions. Explain the goal before each run.
+Chat consumes model usage. The only document write in this sequence is the
+explicitly approved one-document indexing upload. Keep its --confirm-sandbox
+guard and verify the exact destination hostname before running it.
+
+For MCP, inspect the discovered Search schema before creating a reviewed
+arguments file. Use --search-args-file and --query-pointer only when that
+schema needs them. Do not guess fields or run other discovered tools.
+
+For indexing, keep the existing fixture, stable document ID and one-reader
+ACL. Run the preview first. After upload, allow asynchronous processing and
+use the read-only status check. Do not keep reuploading a pending document.
+The permission checker may return exit code 2 and PARTIAL when the allowed
+case passes but no second reader is configured. Explain what was tested and
+what remains NOT_RUN. Never present that as a full allow/deny or revocation
+test. Actual search as the reader is still a separate verification step.
+
+Use only actual results from real runs as evidence. Do not replace a failure
+with fabricated success or replay an old report without clearly saying it is
+recorded.
+Read the output and explain the result in plain language. Keep credential
+values out of every screenshot and report. Titles, links and Chat answers
+can still be private, so use audience-appropriate sandbox content.
+
+After all 11 regular exercises have run, offer the recorded-result launcher
+for the presentation. Read scripts/open_presenter_windows.py first, then run
+.venv/bin/python scripts/open_presenter_windows.py --plan to inspect the
+proposed windows and missing reports without controlling an application.
+It requires 11 valid saved reports in outputs/presenter/. Reports can contain
+success, failure or partial coverage. Do not manufacture missing reports or
+change an outcome to make the launcher ready.
+
+Have me double-click scripts/open_presenter_windows.command in Finder or run
+./scripts/open_presenter_windows.command myself. It opens 11 separate macOS
+Terminal windows in teaching order, each using --replay --color always --hold.
+Do not invoke the launcher yourself to bypass unavailable or denied desktop
+control. If macOS asks for automation access, explain the request. If windows
+cannot be opened, give me the commands from --plan to run in separate windows.
+Do not claim the windows are open unless their opening has been confirmed.
+
+Explain that replay is visibly labeled RECORDED RESULT and shows the actual
+run timestamp and original command. It does not contact Glean, consume model
+usage, repeat the indexing upload or establish the sandbox's current state.
+To display one recording manually, use
+.venv/bin/python scripts/present.py NAME --replay --color always --hold.
+Replay uses the saved command and does not accept live-run overrides such as
+--confirm-sandbox or --search-args-file. A new live run requires deliberately
+omitting --replay and following the normal exercise safeguards.
+
+At the end, list the open windows, commands run, results and incomplete checks.
+Point to the ignored reports in outputs/presenter/. Keep all terminal windows
+open. Do not revoke the session's credentials before I finish presenting.
+Tell me how to revoke my temporary credentials through the approved workflow
+afterward. Do not change admin identities or run optional maintenance helpers
+just because they exist in the repository.
+```
