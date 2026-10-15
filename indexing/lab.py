@@ -28,7 +28,7 @@ TITLE = "PowerUp Demo: Orion Service Recovery"
 SOURCE_URL = "https://github.com/johnyzaguirre-glean/glean-api-sdk-mcp-powerup/blob/main/indexing/sample_document.md"
 BODY = (HERE / "sample_document.md").read_text(encoding="utf-8")
 KEYS = {"GLEAN_INDEXING_BASE_URL", "GLEAN_INDEXING_TOKEN_FILE", "GLEAN_INDEXING_DATASOURCE",
-        "GLEAN_INDEXING_TEST_EMAIL", "GLEAN_INDEXING_QUERY"}
+        "GLEAN_INDEXING_TEST_EMAIL", "GLEAN_INDEXING_QUERY", "GLEAN_INDEXING_DENIED_TEST_EMAIL"}
 
 
 @dataclass(frozen=True)
@@ -38,6 +38,7 @@ class Config:
     datasource: str
     test_email: str
     query: str
+    denied_test_email: str | None = None
 
 
 def load_env(path=None, environ=None):
@@ -66,20 +67,29 @@ def load_env(path=None, environ=None):
     return values
 
 
+def validate_test_email(email):
+    if (not re.fullmatch(r"[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}", email)
+            or len(email) > 254 or email.upper().startswith("YOUR-")):
+        raise SafeFailure("set the test email to one existing approved sandbox user")
+    return email
+
+
 def configure(values=None):
     values = load_env() if values is None else values
     base = validate_base(values.get("GLEAN_INDEXING_BASE_URL"))
     source = values.get("GLEAN_INDEXING_DATASOURCE", "")
     if not re.fullmatch(r"powerupdemo[a-zA-Z0-9]{1,40}", source) or "YOUR" in source.upper():
         raise SafeFailure("use a dedicated alphanumeric datasource named powerupdemo plus your demo suffix")
-    email = values.get("GLEAN_INDEXING_TEST_EMAIL", "")
-    if (not re.fullmatch(r"[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}", email)
-            or len(email) > 254 or email.upper().startswith("YOUR-")):
-        raise SafeFailure("set GLEAN_INDEXING_TEST_EMAIL to one existing approved sandbox user")
+    email = validate_test_email(values.get("GLEAN_INDEXING_TEST_EMAIL", ""))
+    denied_email = values.get("GLEAN_INDEXING_DENIED_TEST_EMAIL", "").strip() or None
+    if denied_email:
+        validate_test_email(denied_email)
+        if denied_email.casefold() == email.casefold():
+            raise SafeFailure("the denied test reader must be a different approved sandbox user")
     query = validate_query(values.get("GLEAN_INDEXING_QUERY", '"' + TITLE + '"'))
     secret_file = values.get("GLEAN_INDEXING_TOKEN_FILE", ".secrets/glean-indexing-token")
     token_path(secret_file)
-    return Config(base, secret_file, source, email, query)
+    return Config(base, secret_file, source, email, query, denied_email)
 
 
 def confirm_target(config, confirmation):

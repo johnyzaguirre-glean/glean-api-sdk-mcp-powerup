@@ -150,3 +150,5 @@ The tests use a mock HTTP transport with the real pinned SDK. They verify the ad
 When the lab is finished, revoke the temporary token through your approved process and remove its local file. Ask the sandbox owner to clean up the dedicated demo document or datasource when appropriate. This repository intentionally includes no delete or bulk-replacement command.
 
 For guided help, use [the indexing Tau prompt](PROMPT.md). For failures, see the [Indexing SDK section of the troubleshooting guide](../TROUBLESHOOTING.md#indexing-sdk-lab).
+
+For the next exercise, use [Who should be able to find this runbook?](PERMISSIONS.md). It adds read-only allowed/denied reader checks and explains how to validate actual search and a later access revocation without changing the existing fixture automatically.
