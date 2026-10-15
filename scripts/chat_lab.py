@@ -11,11 +11,12 @@ import unicodedata
 from urllib.parse import quote
 
 from scripts.common import (
-    MAX_RESPONSE_BYTES, ROOT, TIMEOUT, QuietLogger, ResponseBodyLimitExceeded,
+    MAX_RESPONSE_BYTES, ROOT, QuietLogger, ResponseBodyLimitExceeded,
     SafeFailure, execute, identifier, load_config, read_token, safe_url,
     save_report, serialized_output, validate_base,
 )
 
+CHAT_TIMEOUT = 120
 MAX_ANSWER_CHARACTERS = 4000
 MAX_CITATIONS = 10
 
@@ -173,7 +174,7 @@ def bounded_client(observation):
             raise SafeFailure("unexpected_compressed_response")
         response.stream = LimitedStream(response.stream)
 
-    with httpx.Client(timeout=TIMEOUT, follow_redirects=False,
+    with httpx.Client(timeout=CHAT_TIMEOUT, follow_redirects=False,
                       headers={"Accept-Encoding": "identity"},
                       event_hooks={"request": [on_request], "response": [on_response]}) as client:
         yield client
@@ -186,11 +187,11 @@ def chat_probe(base_url, token, query, use_sdk=False):
             if use_sdk:
                 from glean.api_client import Glean
                 with Glean(api_token=token, server_url=base_url, client=client,
-                           retry_config=None, timeout_ms=TIMEOUT * 1000,
+                           retry_config=None, timeout_ms=CHAT_TIMEOUT * 1000,
                            debug_logger=QuietLogger()) as glean:
                     # Platform Chat, distinct from legacy glean.client.chat.create.
                     reply = glean.chat.create(input=query, store=False,
-                                              retries=None, timeout_ms=TIMEOUT * 1000)
+                                              retries=None, timeout_ms=CHAT_TIMEOUT * 1000)
                     data = reply.model_dump(mode="json", by_alias=True)
             else:
                 response = client.post(base_url + "/api/chat",
@@ -227,7 +228,8 @@ def run_chat(use_sdk=False):
         raise SafeFailure("reinstall requirements.txt to use glean-api-client 0.17.16")
     mode = "python" if use_sdk else "rest"
     result = execute(mode + "_chat", 200,
-                     lambda: chat_probe(base_url, token, query, use_sdk=use_sdk))
+                     lambda: chat_probe(base_url, token, query, use_sdk=use_sdk),
+                     timeout_seconds=CHAT_TIMEOUT)
     if use_sdk:
         result["sdk_version"] = version
     result["test_expectation_met"] = bool(

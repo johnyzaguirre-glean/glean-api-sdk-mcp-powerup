@@ -198,6 +198,8 @@ Look for `test_expectation_met: true`. The runner requires HTTP `200`, `response
 
 Do not expect REST and Python to produce identical answer text. Compare whether they addressed the same question using appropriate sources. Change only `GLEAN_CHAT_QUERY` in `.env` to try another question, then rerun either command.
 
+**Live verification, October 14, 2026:** Both repository examples completed against a test sandbox with generated answers and source citations. Both returned HTTP `200`, `COMPLETED`, `store:false` and no saved conversation ID. Python used `glean-api-client==0.17.16`. The REST call took about 40 seconds and the Python call about 63 seconds. Chat now allows 120 seconds after the initial 30-second deadline proved too short. These are recorded test results, not a latency guarantee.
+
 These reports can contain private generated text, source titles and links. They are ignored by Git. Keep them local and review their contents before sharing. A long answer or citation list may be shortened for the report, so do not treat the displayed excerpt as the entire response.
 
 The examples also accept `--base-url`, `--token-file` and `--query` overrides. For the guided lab, editing `.env` is simpler. Never pass a token value on the command line.
@@ -268,7 +270,7 @@ python scripts/run_diagnostics.py --include-chat
 
 `--include-negative` sends two deliberately invalid search requests. `--include-filters` retrieves available search filters. `--include-chat` is a separate connection diagnostic: it requires Chat access and sends a fixed benign prompt with `store:false`. It does not use `GLEAN_CHAT_QUERY` or replace the full Chat exercise above. It can consume usage and produce service telemetry. These examples do not run agent actions or write indexed documents.
 
-Requests have a 30-second deadline, no automatic retries, no redirect following and a 2 MB response limit. A failure does not automatically trigger broader permissions.
+Search and MCP requests have a 30-second deadline. The Chat examples allow 120 seconds for answer generation. All use no automatic retries, no redirect following and a 2 MB response limit. A failure does not automatically trigger broader permissions.
 
 ## If something fails
 

@@ -50,12 +50,12 @@ class QuietLogger:
 
 
 @contextlib.contextmanager
-def deadline():
+def deadline(seconds=TIMEOUT):
     """Enforce a total per-probe deadline, including body download/parsing."""
     def expired(_signum, _frame):
         raise TimeoutError("probe deadline")
     previous = signal.signal(signal.SIGALRM, expired)
-    signal.setitimer(signal.ITIMER_REAL, TIMEOUT)
+    signal.setitimer(signal.ITIMER_REAL, seconds)
     try:
         yield
     finally:
@@ -253,14 +253,14 @@ def sdk_probe(base_url, token, query):
                 return fields
 
 
-def execute(test_id, expected, operation):
+def execute(test_id, expected, operation, timeout_seconds=TIMEOUT):
     started = time.monotonic()
     entry = {"id": test_id, "started_at": utc_now(), "expected_http_status": expected}
     try:
-        with deadline():
+        with deadline(timeout_seconds):
             entry.update(operation())
     except TimeoutError:
-        entry["error"] = "timeout_30_seconds"
+        entry["error"] = f"timeout_{timeout_seconds:g}_seconds"
     except Exception as exc:
         entry["error"] = "transport_or_local_error"
         entry["exception_type"] = type(exc).__name__
