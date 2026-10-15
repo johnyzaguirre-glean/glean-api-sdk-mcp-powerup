@@ -303,9 +303,12 @@ def run_child(command, timeout, root=ROOT):
     started = time.monotonic()
     # Existing entrypoints bound network output. Temporary files also keep their
     # incidental messages out of the audience-facing terminal.
-    with tempfile.TemporaryFile() as output, tempfile.TemporaryFile() as errors:
+    with tempfile.TemporaryFile() as output, tempfile.TemporaryFile() as errors, \
+            tempfile.NamedTemporaryFile(prefix="glean-present-input-", mode="w+b") as inputs:
+        child_env = dict(os.environ, GLEAN_PRESENTER_INPUT_FILE=inputs.name)
         try:
-            completed = subprocess.run(command, cwd=root, stdout=output, stderr=errors, timeout=timeout, check=False)
+            completed = subprocess.run(command, cwd=root, stdout=output, stderr=errors,
+                                       timeout=timeout, check=False, env=child_env)
             returncode = completed.returncode
         except subprocess.TimeoutExpired:
             returncode = 124
@@ -316,6 +319,15 @@ def run_child(command, timeout, root=ROOT):
         raw = output.read(MAX_CAPTURE_BYTES + 1)
         errors.seek(0, 2)
         stderr_present = errors.tell() > 0
+        inputs.seek(0)
+        captured_inputs = []
+        for line in inputs.read(256_001).splitlines()[:32]:
+            try:
+                event = json.loads(line)
+                if isinstance(event, dict) and event.get("kind") in {"http_request", "sdk_preview", "sdk_call"}:
+                    captured_inputs.append(scrub(event))
+            except (ValueError, UnicodeError):
+                continue
     issue = None
     if len(raw) > MAX_CAPTURE_BYTES:
         report = None
@@ -333,7 +345,8 @@ def run_child(command, timeout, root=ROOT):
     if returncode == 0 and report is None:
         returncode = 1  # Never announce a pass without returned structured evidence.
     return {"exit_code": returncode, "elapsed_seconds": round(time.monotonic() - started, 2),
-            "report": scrub(report), "runner_issue": issue, "stderr_present": stderr_present}
+            "report": scrub(report), "inputs": captured_inputs,
+            "runner_issue": issue, "stderr_present": stderr_present}
 
 
 def save_result(path, value):
@@ -398,6 +411,16 @@ def load_recording(name, root=ROOT):
             raise ValueError
         if saved["exit_code"] == 0 and saved.get("report") is None:
             raise ValueError
+        if "inputs" in saved:
+            if not isinstance(saved["inputs"], list) or len(saved["inputs"]) > 32:
+                raise ValueError
+            for event in saved["inputs"]:
+                if (not isinstance(event, dict)
+                        or event.get("kind") not in {"http_request", "sdk_preview", "sdk_call"}
+                        or not isinstance(event.get("operation"), str)
+                        or ("endpoint" in event and not isinstance(event["endpoint"], str))
+                        or (event.get("payload") is not None and not isinstance(event["payload"], (dict, list)))):
+                    raise ValueError
     except (OSError, ValueError, UnicodeError, TypeError):
         raise ValueError(f"No valid recorded presenter result for {name}. Run that exercise first.") from None
     return scrub(saved)
@@ -422,6 +445,50 @@ def show_result(screen, name, result, path, recorded=False):
     screen.line("Saved private report: " + str(path.relative_to(ROOT)), "dim")
     if result.get("stderr_present"):
         screen.line("The child also wrote diagnostic stderr. Raw stderr is omitted from the presenter report.", "yellow")
+
+
+def show_inputs(screen, name, result, *, recorded=False, fallback=None):
+    inputs = result.get("inputs") or []
+    screen.line()
+    if not inputs and fallback:
+        screen.line("CURRENT INPUT PREVIEW | not captured with the recorded upload", "yellow")
+        screen.line("Preview recorded at: " + fallback["completed_at"])
+        screen.line("This shows the current demo document. It does not prove the earlier upload used this exact payload.")
+        inputs = fallback.get("inputs") or []
+    elif inputs:
+        screen.line("RECORDED INPUT | captured during that run" if recorded else
+                    "REQUEST INPUT | captured by this exercise", "cyan")
+    else:
+        if recorded:
+            screen.line("INPUT NOT RECORDED | this result has no request capture", "yellow")
+            screen.line("Run a read-only exercise live to capture its inputs. Do not reupload a document just to refresh this view.")
+        else:
+            screen.line("NO INPUT CAPTURE | no request payload was recorded by this exercise", "yellow")
+            screen.line("The exercise may have stopped before sending a request. Read its result below.")
+        return
+    screen.line("Credential values and HTTP headers are omitted. Displayed content is sanitized.", "dim")
+    for index, event in enumerate(inputs, 1):
+        screen.line()
+        kind = event.get("kind")
+        label = "SDK PREVIEW (nothing sent)" if kind == "sdk_preview" else "SDK ARGUMENTS" if kind == "sdk_call" else "HTTP REQUEST"
+        screen.line(f"{index}. {label} | {event.get('operation', '')}", "bold")
+        if event.get("endpoint"):
+            screen.line(event["endpoint"], "blue")
+        payload = event.get("payload")
+        if payload is None:
+            screen.line("No request body.")
+        else:
+            screen.json(scrub(payload))
+
+
+def pause_for_response(screen, args):
+    if args.step and sys.stdin.isatty():
+        screen.line()
+        screen.line("INPUT ABOVE | Press Enter to reveal the response and what it means.", "cyan")
+        try:
+            input()
+        except EOFError:
+            pass
 
 
 def hold_window(screen):
@@ -449,6 +516,14 @@ def replay(name, args, screen):
     if args.plan:
         screen.line("PLAN ONLY | recording validated; no process started.", "yellow")
         return 0
+    fallback = None
+    if name == "indexing-apply" and not saved.get("inputs"):
+        try:
+            fallback = load_recording("indexing-preview")
+        except ValueError:
+            pass
+    show_inputs(screen, name, saved, recorded=True, fallback=fallback)
+    pause_for_response(screen, args)
     show_result(screen, name, saved, ROOT / "outputs" / "presenter" / (name + ".json"), recorded=True)
     screen.line("To rerun live, use the command shown above. Recheck credential expiry and write intent first.", "dim")
     if args.hold:
@@ -464,6 +539,7 @@ def parser():
     result.add_argument("--replay", action="store_true", help="Display this exercise's saved real result, clearly labeled recorded; never run a request")
     result.add_argument("--color", choices=("auto", "always", "never"), default="auto")
     result.add_argument("--hold", action="store_true", help="Wait for Enter after completion; use in a dedicated terminal window")
+    result.add_argument("--step", action="store_true", help="In an interactive terminal, pause on the request inputs; press Enter to reveal the response")
     result.add_argument("--confirm-sandbox", help="Required only for the one-document indexing write")
     result.add_argument("--search-args-file", help="Reviewed extra Search arguments for mcp-search only")
     result.add_argument("--query-pointer", default="/query", help="Reviewed query location for mcp-search only")
@@ -520,6 +596,8 @@ def main(argv=None):
              "outcome": label, **result}
     path = ROOT / "outputs" / "presenter" / (args.exercise + ".json")
     save_result(path, scrub(saved))
+    show_inputs(screen, args.exercise, result)
+    pause_for_response(screen, args)
     show_result(screen, args.exercise, result, path)
     if args.hold:
         hold_window(screen)

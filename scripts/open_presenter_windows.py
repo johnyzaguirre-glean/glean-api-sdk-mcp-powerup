@@ -28,7 +28,7 @@ def window_commands(root=ROOT):
     commands = []
     for number, name in enumerate(MAIN_EXERCISES, 1):
         arguments = [str(python), str(root / "scripts/present.py"), name,
-                     "--replay", "--color", "always", "--hold"]
+                     "--replay", "--color", "always", "--hold", "--step"]
         commands.append({"name": name, "title": f"{number:02d} | Glean PowerUp | {EXERCISES[name].title}",
                          "command": "cd " + shlex.quote(str(root)) + " && " + shlex.join(arguments)})
     return commands
@@ -55,7 +55,8 @@ def main(argv=None):
         except ValueError:
             missing.append(item["name"])
     print("Glean PowerUp: recorded exercise windows")
-    print("Each window displays an actual saved result with its timestamp and original command.")
+    print("Each window shows the input first. Press Enter to reveal the saved response and its meaning.")
+    print("Requests and results carry the original run timestamp. Older uploads may use a labeled current preview.")
     print("Opening these windows does not rerun requests, consume model usage, or reupload a document.")
     if args.plan:
         for item in commands:

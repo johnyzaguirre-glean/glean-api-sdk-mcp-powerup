@@ -18,7 +18,8 @@ from urllib.parse import urlsplit
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 from scripts.common import (MAX_RESPONSE_BYTES, QuietLogger, ResponseBodyLimitExceeded,
-                            SafeFailure, TIMEOUT, deadline, guarded_main, identifier,
+                            SafeFailure, TIMEOUT, capture_http_request, capture_input,
+                            deadline, guarded_main, identifier,
                             read_token, serialized_output, token_path, validate_base,
                             validate_query, validate_token)
 
@@ -156,7 +157,8 @@ def bounded_client(config, token, observations, transport=None):
     def client_factory():
         with httpx.Client(timeout=TIMEOUT, follow_redirects=False, transport=transport,
                           headers={"Accept-Encoding": "identity"},
-                          event_hooks={"response": [observe]}) as client:
+                          event_hooks={"request": [lambda req: capture_http_request(req, token)],
+                                       "response": [observe]}) as client:
             with Glean(api_token=token, server_url=config.base_url, client=client,
                        retry_config=None, timeout_ms=TIMEOUT * 1000,
                        debug_logger=QuietLogger()) as glean:

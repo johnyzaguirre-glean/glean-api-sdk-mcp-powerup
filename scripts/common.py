@@ -20,6 +20,11 @@ from datetime import datetime, timezone
 from enum import Enum
 from urllib import error, parse, request
 
+if __package__:
+    from scripts.presenter_capture import capture_input
+else:
+    from presenter_capture import capture_input
+
 ROOT = Path(__file__).resolve().parents[1]
 TIMEOUT = 30
 MAX_RESPONSE_BYTES = 2_000_000
@@ -174,6 +179,23 @@ def summarize(kind, data):
     return result
 
 
+def capture_http_request(prepared_request, token):
+    """Capture bounded JSON from the prepared request, never its headers."""
+    if not os.environ.get("GLEAN_PRESENTER_INPUT_FILE"):
+        return
+    try:
+        content = prepared_request.content
+        if len(content) > MAX_RESPONSE_BYTES:
+            return
+        payload = json.loads(content) if content else None
+        if payload is not None and not isinstance(payload, (dict, list)):
+            return
+    except (ValueError, UnicodeError, AttributeError):
+        return
+    capture_input("http_request", prepared_request.method + " " + prepared_request.url.path,
+                  payload, token=token, endpoint=str(prepared_request.url))
+
+
 def rest_probe(base_url, token, method, path, payload, kind):
     body = json.dumps(payload).encode() if payload is not None else None
     req = request.Request(base_url + path, data=body, method=method,
@@ -181,6 +203,8 @@ def rest_probe(base_url, token, method, path, payload, kind):
                                    "Accept": "application/json",
                                    "Content-Type": "application/json"})
     opener = request.build_opener(NoRedirect)
+    capture_input("http_request", method + " " + path, payload, token=token,
+                  endpoint=base_url + path)
     try:
         response = opener.open(req, timeout=TIMEOUT)
     except error.HTTPError as exc:
@@ -221,7 +245,8 @@ def sdk_probe(base_url, token, query):
         response.stream = LimitedStream(response.stream)
     with httpx.Client(timeout=TIMEOUT, follow_redirects=False,
                       headers={"Accept-Encoding": "identity"},
-                      event_hooks={"response": [record_status]}) as client:
+                      event_hooks={"request": [lambda req: capture_http_request(req, token)],
+                                   "response": [record_status]}) as client:
         with Glean(api_token=token, server_url=base_url, client=client,
                    retry_config=None, timeout_ms=TIMEOUT * 1000,
                    debug_logger=QuietLogger()) as glean:

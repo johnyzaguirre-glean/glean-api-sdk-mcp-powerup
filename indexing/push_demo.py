@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Preview or add/update exactly one synthetic document with a one-user ACL."""
 from lab import (Config, TIMEOUT, bounded_client, check_versions, configure, confirm_target,
-                 deadline, emit, make_document, mutation_parser, preview, read_token,
+                 capture_input, deadline, emit, make_document, mutation_parser, preview, read_token,
                  run_guarded, safe_failure)
 
 
@@ -11,6 +11,10 @@ def main():
     check_versions()
     document = make_document(config)
     if not args.apply:
+        capture_input("sdk_preview", "PushUploader.index_documents",
+                      {"datasource": config.datasource,
+                       "documents": [document.model_dump(mode="json", by_alias=True, exclude_none=True)]},
+                      endpoint=config.base_url)
         emit(preview(config, "index_documents"))
         return 0
     confirm_target(config, args.confirm_sandbox)

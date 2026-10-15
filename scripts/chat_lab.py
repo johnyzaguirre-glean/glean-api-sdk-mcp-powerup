@@ -12,7 +12,7 @@ from urllib.parse import quote
 
 from scripts.common import (
     MAX_RESPONSE_BYTES, ROOT, QuietLogger, ResponseBodyLimitExceeded,
-    SafeFailure, execute, identifier, load_config, read_token, safe_url,
+    SafeFailure, capture_http_request, execute, identifier, load_config, read_token, safe_url,
     save_report, serialized_output, validate_base,
 )
 
@@ -141,7 +141,7 @@ def chat_summary(data, token):
 
 
 @contextlib.contextmanager
-def bounded_client(observation):
+def bounded_client(observation, token=""):
     """No redirects or retries. Bound the body even when the SDK reads it."""
     import httpx
 
@@ -160,8 +160,9 @@ def bounded_client(observation):
         def close(self):
             self.stream.close()
 
-    def on_request(_request):
+    def on_request(prepared_request):
         observation["request_count"] += 1
+        capture_http_request(prepared_request, token)
 
     def on_response(response):
         observation["http_status"] = response.status_code
@@ -183,7 +184,7 @@ def bounded_client(observation):
 def chat_probe(base_url, token, query, use_sdk=False):
     observation = {"http_status": None, "request_count": 0}
     try:
-        with bounded_client(observation) as client:
+        with bounded_client(observation, token=token) as client:
             if use_sdk:
                 from glean.api_client import Glean
                 with Glean(api_token=token, server_url=base_url, client=client,

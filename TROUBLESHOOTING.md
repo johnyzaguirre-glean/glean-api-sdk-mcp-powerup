@@ -58,6 +58,7 @@ By default the presenter runs the existing exercise and reports its real exit co
 | What you see | What to check next |
 | --- | --- |
 | Colors are missing or escape codes appear literally | Use `--color always` in an ANSI-capable terminal, or `--color never` for plain text. Syntax highlighting does not change the saved result. |
+| The presenter waits on the input payload | This is `--step`. Explain the endpoint and JSON first, then press Enter to reveal the response. The launcher enables it in every window. |
 | The presenter waits after the result | This is `--hold`. Leave it waiting to keep the showcase visible. Press Enter when ready to return to the shell. |
 | An indexing command reports a missing dependency | Install `indexing/requirements.txt` in `.venv-indexing`. The presenter chooses that interpreter automatically; do not install the older indexing dependencies into `.venv`. |
 | MCP Search needs an argument file | Run `mcp-discover`, inspect its current Search schema, and supply only the reviewed fields. See the README before using `--search-args-file` or a nested `--query-pointer`. |
@@ -69,6 +70,8 @@ By default the presenter runs the existing exercise and reports its real exit co
 | macOS does not open every window | Run the `.command` launcher yourself and review any macOS automation prompt. If it still cannot open all windows, run the commands from `--plan` in separate terminals. Existing windows remain open and replay sends no requests. |
 | Replay rejects a command-line option | Replay uses the saved command. Remove live-run overrides such as `--confirm-sandbox` and `--search-args-file`. To run a new request, deliberately omit `--replay` and follow that exercise's normal safeguards. |
 | A replay still shows an earlier failure after the issue was fixed | This is the original recorded evidence, identified by its timestamp. Run the exercise live again if you need a new observation. Replay does not check current service state or credential validity. |
+
+Older open windows do not reload changed code automatically. Run the launcher again yourself to open the updated views, or rerun a single `--replay --step --hold` command. Existing windows are preserved. Older reports without a request capture are labeled accordingly; a current preview is not historical upload evidence.
 
 Keep the terminal windows open after the demonstration until you are done using them. Presenter reports are stored under `outputs/presenter/` and ignored by Git. They can still contain private titles, links and Chat text. Review them before sharing.
 

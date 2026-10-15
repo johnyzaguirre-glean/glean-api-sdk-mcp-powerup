@@ -15,7 +15,7 @@ import sys
 import time
 from urllib import error, parse, request
 
-from common import (MAX_RESPONSE_BYTES, NoRedirect, SafeFailure, TIMEOUT, ROOT,
+from common import (MAX_RESPONSE_BYTES, NoRedirect, SafeFailure, TIMEOUT, ROOT, capture_input,
                     deadline, identifier, safe_scalar, safe_url, save_report, utc_now,
                     load_config, read_token, validate_query, serialized_output,
                     url_fingerprint, title_fingerprint)
@@ -95,6 +95,9 @@ class Probe:
         try:
             with deadline():
                 req = request.Request(self.url, data=body, method=method, headers=headers)
+                if payload is not None:
+                    capture_input("http_request", method + " " + label, payload,
+                                  token=self.token, endpoint=self.url)
                 try:
                     response = self.opener.open(req, timeout=TIMEOUT)
                 except error.HTTPError as exc:

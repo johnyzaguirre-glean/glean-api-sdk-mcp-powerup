@@ -20,6 +20,7 @@ class LauncherTests(unittest.TestCase):
         self.assertEqual(len({item["title"] for item in commands}), 11)
         for item in commands:
             self.assertIn("--replay --color always --hold", item["command"])
+            self.assertIn("--step", item["command"])
             self.assertNotIn("--apply", item["command"])
             self.assertNotIn("--confirm-sandbox", item["command"])
             self.assertIn(shlex.quote(str(root)), item["command"])

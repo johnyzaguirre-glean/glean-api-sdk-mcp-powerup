@@ -212,7 +212,9 @@ Open one terminal window per chosen example if you can control my desktop.
 Otherwise give me one copyable command at a time and tell me to open each in
 a new window. Use the repository root as the working directory. Use
 .venv/bin/python scripts/present.py NAME --color always --hold. The presenter
-selects the correct child interpreter. Leave the windows open when complete.
+selects the correct child interpreter. Add --step to show the captured input first,
+then wait for Enter to reveal the response. A live request completes before this
+presentation pause. Headers and credentials must stay hidden. Leave the windows open when complete.
 Do not automatically clear them, close them or execute another example in
 the same window.
 
@@ -252,7 +254,7 @@ change an outcome to make the launcher ready.
 
 Have me double-click scripts/open_presenter_windows.command in Finder or run
 ./scripts/open_presenter_windows.command myself. It opens 11 separate macOS
-Terminal windows in teaching order, each using --replay --color always --hold.
+Terminal windows in teaching order, each using --replay --color always --hold --step.
 Do not invoke the launcher yourself to bypass unavailable or denied desktop
 control. If macOS asks for automation access, explain the request. If windows
 cannot be opened, give me the commands from --plan to run in separate windows.
@@ -262,10 +264,16 @@ Explain that replay is visibly labeled RECORDED RESULT and shows the actual
 run timestamp and original command. It does not contact Glean, consume model
 usage, repeat the indexing upload or establish the sandbox's current state.
 To display one recording manually, use
-.venv/bin/python scripts/present.py NAME --replay --color always --hold.
+.venv/bin/python scripts/present.py NAME --replay --color always --hold --step.
 Replay uses the saved command and does not accept live-run overrides such as
 --confirm-sandbox or --search-args-file. A new live run requires deliberately
 omitting --replay and following the normal exercise safeguards.
+
+Verify that every demo shows the input before the response. Use captured input
+from the same run. Never silently rebuild old inputs from current .env settings.
+An old indexing upload may show the latest indexing preview only when clearly
+labeled CURRENT INPUT PREVIEW, not captured with that upload. Do not repeat an
+indexing write merely to refresh the display.
 
 At the end, list the open windows, commands run, results and incomplete checks.
 Point to the ignored reports in outputs/presenter/. Keep all terminal windows
